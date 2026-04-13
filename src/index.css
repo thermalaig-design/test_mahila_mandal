@@ -1,0 +1,194 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Brand CSS Variables ── */
+:root {
+  --brand-red:        #C0241A;
+  --brand-red-dark:   #9B1A13;
+  --brand-red-mid:    #E8352A;
+  --brand-red-light:  #FDECEA;
+  --brand-navy:       #2B2F7E;
+  --brand-navy-dark:  #1E2260;
+  --brand-navy-light: #EAEBF8;
+
+  /* Safe Area Variables - Updated by useAndroidSafeArea hook */
+  --safe-area-top: 0px;
+  --safe-area-bottom: 0px;
+  --safe-area-left: 0px;
+  --safe-area-right: 0px;
+}
+
+/* ── Base Typography ── */
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    color-scheme: light;
+  }
+
+  body {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+  }
+}
+
+/* ── Smooth momentum scrolling on iOS ── */
+html, body {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Fix for Android Chrome input focus zoom ── */
+input, textarea, select {
+  font-size: 16px;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Prevent iOS/Android rubber band scroll effect ── */
+body {
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: auto;              /* Allow scrolling */
+  /* Show scrollbar on all browsers */
+  scrollbar-width: thin;        /* Firefox */
+  scrollbar-color: rgba(43, 47, 126, 0.4) rgba(0, 0, 0, 0.05);
+  -ms-overflow-style: auto;     /* IE / Edge */
+}
+#root::-webkit-scrollbar {
+  display: block;               /* Chrome / Safari / WebKit */
+  width: 8px;
+}
+#root::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+#root::-webkit-scrollbar-thumb {
+  background: rgba(43, 47, 126, 0.4);
+  border-radius: 4px;
+}
+#root::-webkit-scrollbar-thumb:hover {
+  background: rgba(43, 47, 126, 0.6);
+}
+
+/* ── Android status bar padding ── */
+@supports (padding: max(0px)) {
+  body {
+    padding-top: max(0px, var(--safe-area-top));
+    padding-bottom: max(0px, var(--safe-area-bottom));
+    padding-left: max(0px, var(--safe-area-left));
+    padding-right: max(0px, var(--safe-area-right));
+  }
+}
+
+/* ── Animations ── */
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.marquee-track {
+  animation: marquee 28s linear infinite;
+  will-change: transform;
+}
+
+/* ── Shared page wrapper ── */
+.brand-page {
+  background: linear-gradient(135deg, #fff5f5 0%, #ffffff 45%, #f0f1fb 100%);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Brand gradient button ── */
+.btn-brand {
+  background: linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-dark) 50%, var(--brand-navy) 100%);
+  color: #fff;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s, box-shadow 0.2s, transform 0.1s;
+  box-shadow: 0 8px 24px rgba(192,36,26,0.30);
+}
+.btn-brand:hover { opacity: 0.92; }
+.btn-brand:active { transform: scale(0.98); }
+.btn-brand:disabled { opacity: 0.50; cursor: not-allowed; box-shadow: none; }
+
+/* ── Brand card ── */
+.brand-card {
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(192,36,26,0.09);
+  box-shadow: 0 8px 32px rgba(192,36,26,0.07), 0 2px 8px rgba(43,47,126,0.06);
+}
+
+/* ── Top accent bar ── */
+.brand-accent-bar {
+  height: 4px;
+  background: linear-gradient(90deg, var(--brand-red) 0%, var(--brand-navy) 60%, var(--brand-red-mid) 100%);
+  border-radius: 2px 2px 0 0;
+}
+
+/* ── Section label ── */
+.brand-section-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-red);
+}
+
+/* ── Legal content ── */
+@layer components {
+  .legal-content h1 {
+    @apply text-2xl font-bold mb-4;
+    color: var(--brand-navy);
+  }
+  .legal-content h2 {
+    @apply text-lg font-semibold mt-5 mb-2;
+    color: var(--brand-navy);
+  }
+  .legal-content p {
+    @apply text-base leading-relaxed text-gray-700 mt-2;
+  }
+  .legal-content ul {
+    @apply list-disc ml-5 mt-3 space-y-1;
+  }
+  .legal-content ol {
+    @apply list-decimal ml-5 mt-3 space-y-1;
+  }
+  .legal-content a {
+    color: var(--brand-red);
+    @apply underline underline-offset-2;
+  }
+  .legal-content i,
+  .legal-content em {
+    @apply italic text-gray-500;
+  }
+}

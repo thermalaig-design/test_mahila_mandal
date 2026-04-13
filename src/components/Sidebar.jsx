@@ -1,0 +1,479 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Home as HomeIcon, Users, Clock, FileText, UserPlus, ChevronRight, LogOut, Image, User, Share2 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { getProfile, getMemberTrustLinks } from '../services/api';
+import { fetchFeatureFlags, isFeatureEnabled } from '../services/featureFlags';
+
+// Calculate profile completion % based on filled fields
+const calcCompletion = (profile, user) => {
+  const fields = [
+    profile?.name || user?.Name || user?.name,
+    profile?.profilePhotoUrl,
+    user?.Mobile || user?.mobile,
+    user?.Email || user?.email,
+    user?.['Company Name'] || user?.company,
+    user?.['Address Home'] || user?.address,
+    user?.['Membership number'] || user?.membership_number,
+  ];
+  const filled = fields.filter(Boolean).length;
+  return Math.round((filled / fields.length) * 100);
+};
+
+const Sidebar = ({ isOpen, onClose, onNavigate, currentPage }) => {
+  const sidebarRef = useRef(null);
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [shareToast, setShareToast] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState({});
+  const [memberTrustLinks, setMemberTrustLinks] = useState([]);
+  const [loadingTrustLinks, setLoadingTrustLinks] = useState(false);
+  const [hasFetchedTrustLinks, setHasFetchedTrustLinks] = useState(false);
+  const [debugMemberId, setDebugMemberId] = useState('');
+
+  // Load feature flags when sidebar opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const trustId = localStorage.getItem('selected_trust_id') || null;
+    fetchFeatureFlags(trustId, { force: false }).then((result) => {
+      if (result.success) setFeatureFlags(result.flags || {});
+    });
+  }, [isOpen]);
+
+  const ff = (key) => isFeatureEnabled(featureFlags, key);
+
+  // Load profile data when sidebar opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const load = async () => {
+      try {
+        const user = localStorage.getItem('user');
+        const parsedUser = user ? JSON.parse(user) : null;
+        setUserData(parsedUser);
+
+        const response = await getProfile();
+        if (response.success && response.profile) {
+          setProfile({
+            name: response.profile.name || parsedUser?.Name || parsedUser?.name || '',
+            profilePhotoUrl: response.profile.profile_photo_url || '',
+          });
+        } else if (parsedUser) {
+          const key = `userProfile_${parsedUser.Mobile || parsedUser.mobile || parsedUser.id || 'default'}`;
+          const saved = localStorage.getItem(key);
+          if (saved) setProfile(JSON.parse(saved));
+          else setProfile({ name: parsedUser.Name || parsedUser.name || '', profilePhotoUrl: '' });
+        }
+      } catch {
+        const user = localStorage.getItem('user');
+        if (user) {
+          const parsedUser = JSON.parse(user);
+          setUserData(parsedUser);
+          setProfile({ name: parsedUser?.Name || parsedUser?.name || '', profilePhotoUrl: '' });
+        }
+      }
+    };
+    load();
+  }, [isOpen]);
+
+  // Load member trust links when sidebar opens — MERGED with hospital_memberships
+  useEffect(() => {
+    if (!isOpen) return;
+    const load = async () => {
+      try {
+        setLoadingTrustLinks(true);
+        setHasFetchedTrustLinks(false);
+        const user = localStorage.getItem('user');
+        const parsedUser = user ? JSON.parse(user) : null;
+
+        // members_id can be stored as members_id or id in the user object
+        // user.id = members_id (UUID) from Members table set in authService.js
+        const membersId = parsedUser?.members_id || parsedUser?.id;
+        setDebugMemberId(String(membersId || 'NOT FOUND'));
+
+        console.log('🔑 [Sidebar] parsedUser keys:', parsedUser ? Object.keys(parsedUser) : 'null');
+        console.log('🔑 [Sidebar] membersId used for trust lookup:', membersId);
+
+        // ── Source 1: hospital_memberships from localStorage (from reg_members) ──
+        // This is the authoritative list — always has ALL trusts
+        const hospitalMemberships = Array.isArray(parsedUser?.hospital_memberships)
+          ? parsedUser.hospital_memberships
+          : [];
+
+        // ── Source 2: member_trust_links — may have extra details ──
+        let trustLinksMap = {}; // keyed by trust_id
+        if (membersId) {
+          try {
+            const res = await getMemberTrustLinks(membersId);
+            if (res.success && Array.isArray(res.data)) {
+              res.data.forEach((l) => {
+                if (l.trust_id) trustLinksMap[l.trust_id] = l;
+              });
+            }
+          } catch { /* non-fatal */ }
+        }
+
+        // ── Merge: start from hospitalMemberships (all are shown) ──
+        const merged = hospitalMemberships.map((hm, idx) => {
+          const extra = hm.trust_id ? trustLinksMap[hm.trust_id] : null;
+          return {
+            _key: hm.trust_id || `hm-${idx}`,
+            trust_id: hm.trust_id || null,
+            Trust: extra?.Trust || {
+              id: hm.trust_id,
+              name: hm.trust_name,
+              icon_url: hm.trust_icon_url,
+            },
+            source: extra ? 'both' : 'reg_members',
+          };
+        });
+
+        // Also add any member_trust_links entries NOT already in hospitalMemberships
+        const existingTrustIds = new Set(hospitalMemberships.map((hm) => hm.trust_id).filter(Boolean));
+        Object.values(trustLinksMap).forEach((l) => {
+          if (!existingTrustIds.has(l.trust_id)) {
+            merged.push({
+              _key: l.id || l.trust_id,
+              trust_id: l.trust_id,
+              Trust: l.Trust || { id: l.trust_id, name: null, icon_url: null },
+              source: 'member_trust_links',
+            });
+          }
+        });
+
+        console.log(`✅ [Sidebar] Merged ${merged.length} trusts (${hospitalMemberships.length} from hospital_memberships + ${Object.keys(trustLinksMap).length} from member_trust_links)`);
+        setMemberTrustLinks(merged);
+      } catch (error) {
+        console.error('❌ [Sidebar] Error loading member trust links:', error);
+        setMemberTrustLinks([]);
+      } finally {
+        setLoadingTrustLinks(false);
+        setHasFetchedTrustLinks(true);
+      }
+    };
+    load();
+  }, [isOpen]);
+
+  // No body scroll lock needed — the overlay (touchAction: none) already
+  // prevents background scroll on mobile, and covers background on desktop.
+
+  // Swipe left to close
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    let isVerticalScroll = false;
+    let startY = 0;
+    
+    const handleTouchStart = (e) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchEndX.current = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      isVerticalScroll = false;
+    };
+    
+    const handleTouchMove = (e) => {
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const deltaX = Math.abs(currentX - touchStartX.current);
+      const deltaY = Math.abs(currentY - startY);
+      
+      // Detect if this is vertical scrolling (not swipe to close)
+      if (deltaY > deltaX) {
+        isVerticalScroll = true;
+      }
+      
+      touchEndX.current = currentX;
+    };
+    
+    const handleTouchEnd = () => {
+      // Only trigger close if it's a clear horizontal swipe (not vertical scroll)
+      if (!isVerticalScroll && touchStartX.current - touchEndX.current > 80) {
+        onClose();
+      }
+    };
+    
+    const sidebar = sidebarRef.current;
+    if (sidebar) {
+      sidebar.addEventListener('touchstart', handleTouchStart, { passive: true });
+      sidebar.addEventListener('touchmove', handleTouchMove, { passive: true });
+      sidebar.addEventListener('touchend', handleTouchEnd);
+    }
+    return () => {
+      if (sidebar) {
+        sidebar.removeEventListener('touchstart', handleTouchStart);
+        sidebar.removeEventListener('touchmove', handleTouchMove);
+        sidebar.removeEventListener('touchend', handleTouchEnd);
+      }
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  const displayName = profile?.name || userData?.Name || userData?.name || 'User';
+  const initials = displayName.charAt(0).toUpperCase();
+  const completion = calcCompletion(profile, userData);
+
+  const menuItems = [
+    { id: 'home', label: 'Home', icon: HomeIcon },
+    { id: 'directory', label: 'Directory', icon: Users, featureKey: 'feature_directory' },
+    { id: 'appointment', label: 'OPD Schedule', icon: Clock, featureKey: 'feature_opd' },
+    { id: 'reports', label: 'Reports', icon: FileText, featureKey: 'feature_reports' },
+    { id: 'gallery', label: 'Gallery', icon: Image, featureKey: 'feature_gallery' },
+    { id: 'reference', label: 'Patient Referral', icon: UserPlus, featureKey: 'feature_referral' },
+  ].filter((item) => !item.featureKey || ff(item.featureKey));
+
+  return (
+    <>
+      {/* Overlay — absolute within parent container */}
+      <div
+        className="absolute inset-0 bg-white/60 backdrop-blur-sm z-40"
+        data-sidebar-overlay="true"
+        onTouchStart={onClose}
+        onClick={onClose}
+        style={{ touchAction: 'none' }}
+      />
+
+      {/* Sidebar panel — absolute, left-anchored, full height */}
+      <div
+        ref={sidebarRef}
+        className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-2xl z-50 flex flex-col"
+        data-sidebar="true"
+        style={{ maxWidth: '85vw', touchAction: 'pan-y', borderRight: '1px solid rgba(192,36,26,0.08)', overflow: 'hidden', WebkitOverflowScrolling: 'touch', willChange: 'transform', display: 'flex', flexDirection: 'column' }}
+      >
+        {/* Brand accent at top */}
+        <div style={{ height: '4px', background: 'linear-gradient(90deg, #C0241A 0%, #2B2F7E 60%, #E8352A 100%)' }} />
+        {/* ── Profile Card Header ── */}
+        <div
+          className="px-5 pt-14 pb-5 flex-shrink-0 cursor-pointer"
+          style={{ borderBottom: '1px solid rgba(192,36,26,0.08)' }}
+          onClick={() => { onNavigate('profile'); onClose(); }}
+        >
+          {/* Avatar + name row */}
+          <div className="flex items-center gap-3 mb-3">
+            {/* Avatar */}
+            <div className="relative flex-shrink-0">
+              {profile?.profilePhotoUrl ? (
+                <img
+                  src={profile.profilePhotoUrl}
+                  alt={displayName}
+                  className="h-14 w-14 rounded-2xl object-cover"
+                  style={{ border: '2px solid #FDECEA' }}
+                  onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
+                />
+              ) : (
+                <div className="h-14 w-14 rounded-2xl flex items-center justify-center text-xl font-bold select-none"
+                  style={{ background: '#FDECEA', border: '2px solid #C0241A', color: '#C0241A' }}>
+                  {initials}
+                </div>
+              )}
+              {/* Online dot */}
+              <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white" />
+            </div>
+
+            {/* Name + subtitle */}
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm truncate" style={{ color: '#1e293b' }}>{displayName}</p>
+              <p className="text-xs font-semibold mt-0.5" style={{ color: '#C0241A' }}>View &amp; Edit Profile</p>
+            </div>
+
+            <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          </div>
+
+          {/* Completion bar */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] text-gray-500 font-medium">Profile Completion</span>
+              <span className={`text-[11px] font-bold ${completion >= 80 ? 'text-green-600' : completion >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+                {completion}%
+              </span>
+            </div>
+            <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${completion >= 80 ? 'bg-green-500' : completion >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+                style={{ width: `${completion}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Scrollable area: nav + extras + logout ── */}
+        <div 
+          className="flex-1 overflow-y-auto overflow-x-hidden"
+          style={{ 
+            touchAction: 'pan-y', 
+            WebkitOverflowScrolling: 'touch', 
+            minHeight: 0,
+            scrollBehavior: 'smooth',
+            flex: '1 1 auto',
+            overscrollBehavior: 'contain'
+          }}
+        >
+          {/* Nav items */}
+          <div className="py-3 px-3">
+            <div className="space-y-1">
+              {menuItems.map((item) => {
+                const cp = (currentPage || '').toLowerCase();
+                const aliasMap = {
+                  'healthcare-directory': 'directory',
+                  'healthcare-trustee-directory': 'directory',
+                  'directory': 'directory',
+                  'appointments': 'appointment',
+                  'appointment': 'appointment',
+                  'home': 'home',
+                  'reports': 'reports',
+                  'gallery': 'gallery',
+                  'reference': 'reference',
+                  'profile': 'profile'
+                };
+                let normalized = aliasMap[cp] || cp;
+                if (!normalized) normalized = '';
+                if (!aliasMap[cp] && normalized.endsWith('s')) normalized = normalized.slice(0, -1);
+                const isActive = normalized === String(item.id).toLowerCase();
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => { onNavigate(item.id); onClose(); }}
+                    className="w-full flex items-center gap-3 px-4 rounded-xl transition-all text-left active:scale-95 select-none"
+                    style={{
+                      minHeight: '52px',
+                      WebkitTapHighlightColor: 'rgba(192,36,26,0.06)',
+                      background: isActive ? '#FDECEA' : 'transparent',
+                    }}
+                  >
+                    <item.icon className="h-5 w-5 flex-shrink-0" style={{ color: isActive ? '#C0241A' : '#64748b' }} />
+                    <span className="font-semibold flex-1" style={{ color: isActive ? '#C0241A' : '#374151' }}>
+                      {item.label}
+                    </span>
+                    {isActive && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#C0241A' }} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── More Options ── */}
+          <div className="px-3 pt-2 pb-3 border-t border-gray-100 space-y-2">
+            {/* Share Button - controlled by feature_share_app */}
+            {ff('feature_share_app') && <button
+              onClick={async () => {
+                const APP_URL = 'https://play.google.com/store/apps/details?id=com.maharajaagarsen.app';
+                const shareText = 'MAH SETU App - Maharaja Agrasen Hospital ka official app. Download karo Google Play Store se:';
+                const shareData = {
+                  title: 'MAH SETU - Maharaja Agrasen Hospital',
+                  text: shareText,
+                  url: APP_URL,
+                };
+                try {
+                  if (Capacitor.isNativePlatform()) {
+                    await Share.share({
+                      title: shareData.title,
+                      text: `${shareText} ${APP_URL}`,
+                      url: APP_URL,
+                      dialogTitle: 'Share MAH SETU App',
+                    });
+                    return;
+                  }
+                  if (navigator.share) { await navigator.share(shareData); return; }
+                  if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(`${shareText} ${APP_URL}`);
+                    setShareToast(true);
+                    setTimeout(() => setShareToast(false), 2500);
+                  } else {
+                    setShareToast(true);
+                    setTimeout(() => setShareToast(false), 2500);
+                  }
+                } catch (err) {
+                  if (err?.name === 'AbortError') return;
+                  try {
+                    if (navigator.clipboard?.writeText) {
+                      await navigator.clipboard.writeText(`${shareText} ${APP_URL}`);
+                      setShareToast(true);
+                      setTimeout(() => setShareToast(false), 2500);
+                    }
+                  } catch { /* nothing */ }
+                }
+              }}
+              className="w-full flex items-center gap-3 px-4 rounded-xl font-semibold active:opacity-80 transition-all active:scale-95 select-none relative"
+              style={{ minHeight: '48px', background: '#EAEBF8', color: '#2B2F7E', WebkitTapHighlightColor: 'rgba(43,47,126,0.08)' }}
+            >
+              <Share2 className="h-5 w-5 flex-shrink-0" />
+              <span>Share App</span>
+              {shareToast && (
+                <span className="absolute right-4 text-xs text-white px-2 py-0.5 rounded-full"
+                  style={{ background: '#2B2F7E' }}>
+                  Copied!
+                </span>
+              )}
+            </button>}
+
+            {/* Other Membership Details — Navigate to full page */}
+            <button
+              onClick={() => { navigate('/other-memberships'); onClose(); }}
+              className="w-full flex items-center gap-3 px-4 rounded-xl font-semibold transition-all active:scale-95 select-none relative"
+              style={{
+                minHeight: '50px',
+                background: 'linear-gradient(135deg, #EEF1FF 0%, #F0F4FF 100%)',
+                color: '#2B2F7E',
+                border: '1.5px solid #DBEAFE',
+                WebkitTapHighlightColor: 'rgba(43,47,126,0.08)',
+              }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: 'rgba(43,47,126,0.12)' }}
+              >
+                <Users className="h-4 w-4" style={{ color: '#2B2F7E' }} />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-sm font-bold">Other Membership Details</span>
+                {loadingTrustLinks && (
+                  <span className="ml-2 text-[10px] text-gray-400">Loading...</span>
+                )}
+                {!loadingTrustLinks && memberTrustLinks.length > 0 && (
+                  <span
+                    className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'rgba(43,47,126,0.12)', color: '#2B2F7E' }}
+                  >
+                    {memberTrustLinks.length}
+                  </span>
+                )}
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: '#2B2F7E' }} />
+            </button>
+
+          </div>
+
+          {/* ── Logout ── */}
+          <div className="px-3 pb-8" style={{ borderTop: '1px solid rgba(192,36,26,0.08)' }}>
+            <button
+              onClick={() => {
+                localStorage.removeItem('user');
+                localStorage.removeItem('isLoggedIn');
+                localStorage.removeItem('lastVisitedRoute');
+                sessionStorage.removeItem('selectedMember');
+                sessionStorage.removeItem('previousScreen');
+                sessionStorage.removeItem('previousScreenName');
+                navigate('/login', { replace: true });
+                if (onClose) onClose();
+              }}
+              className="w-full flex items-center justify-between px-4 rounded-xl font-bold active:opacity-80 transition-all active:scale-95 select-none"
+              style={{ minHeight: '52px', background: '#FDECEA', color: '#C0241A', WebkitTapHighlightColor: 'rgba(192,36,26,0.08)' }}
+            >
+              <div className="flex items-center gap-3">
+                <LogOut className="h-5 w-5 flex-shrink-0" />
+                <span>Logout</span>
+              </div>
+              <ChevronRight className="h-4 w-4 flex-shrink-0" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default Sidebar;
+
