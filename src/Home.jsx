@@ -970,7 +970,9 @@ const Home = ({ onNavigate, onLogout, isMember }) => {
                       <Image className="h-7 w-7" style={{ color: theme.primary }} />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-center" style={{ color: theme.secondary }}>Mahila Mandal Gallery</p>
+                      <p className="text-sm font-bold text-center" style={{ color: theme.secondary }}>
+                        {(activeTrust?.name || defaultTrust?.name || 'Mahila Mandal')} Gallery
+                      </p>
                       <p className="text-xs text-gray-400 text-center mt-0.5">{galleryError || 'Tap to open gallery'}</p>
                     </div>
                   </button>

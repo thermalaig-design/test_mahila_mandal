@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useBackNavigation } from './hooks';
 import { checkPhoneNumber } from './services/authService';
-import { fetchDefaultTrust, fetchTrustByName, fetchTrustById } from './services/trustService';
-import logo from '../new_logo.png';
+import { fetchTrustByName, fetchTrustById } from './services/trustService';
 
 const DEFAULT_TRUST_NAME = 'Mahila Mandal';
+const FALLBACK_TRUST = { name: DEFAULT_TRUST_NAME };
+const MAHILA_LOGO_URL = import.meta.env.VITE_MAHILA_LOGO_URL || '';
 
 function Login() {
   const navigate = useNavigate();
@@ -14,36 +15,39 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [focused, setFocused] = useState(false);
-  const [trustInfo, setTrustInfo] = useState({ name: DEFAULT_TRUST_NAME });
+  const [trustInfo, setTrustInfo] = useState(FALLBACK_TRUST);
+  const displayLogoUrl = trustInfo?.icon_url || MAHILA_LOGO_URL || '';
 
   useEffect(() => {
     let isActive = true;
     const loadTrust = async () => {
       try {
-        const defaultTrustName = DEFAULT_TRUST_NAME;
         const envTrustId = import.meta.env.VITE_DEFAULT_TRUST_ID;
         const envTrustName = import.meta.env.VITE_DEFAULT_TRUST_NAME;
 
         let trust = null;
-        if (envTrustId) {
-          trust = await fetchTrustById(envTrustId);
-        } else if (envTrustName) {
-          trust = await fetchTrustByName(envTrustName);
-        } else {
-          trust = await fetchTrustByName(defaultTrustName);
-        }
-
-        if (!trust) {
-          trust = await fetchDefaultTrust();
-        }
+        if (envTrustId) trust = await fetchTrustById(envTrustId);
+        if (!trust && envTrustName) trust = await fetchTrustByName(envTrustName);
+        if (!trust) trust = await fetchTrustByName(DEFAULT_TRUST_NAME);
 
         if (isActive) {
-          setTrustInfo(trust);
-          if (trust?.id) localStorage.setItem('selected_trust_id', trust.id);
-          if (trust?.name) localStorage.setItem('selected_trust_name', trust.name);
+          if (trust) {
+            setTrustInfo(trust);
+            if (trust.id) localStorage.setItem('selected_trust_id', trust.id);
+            localStorage.setItem('selected_trust_name', trust.name || DEFAULT_TRUST_NAME);
+          } else {
+            setTrustInfo(FALLBACK_TRUST);
+            localStorage.removeItem('selected_trust_id');
+            localStorage.setItem('selected_trust_name', DEFAULT_TRUST_NAME);
+          }
         }
       } catch (err) {
         console.warn('Failed to load trust info for login:', err);
+        if (isActive) {
+          setTrustInfo(FALLBACK_TRUST);
+          localStorage.removeItem('selected_trust_id');
+          localStorage.setItem('selected_trust_name', DEFAULT_TRUST_NAME);
+        }
       }
     };
     loadTrust();
@@ -110,12 +114,16 @@ function Login() {
           {/* Logo section */}
           <div style={styles.logoSection}>
             <div style={styles.logoRing}>
-              <img
-                src={trustInfo?.icon_url || logo}
-                alt={trustInfo?.name || 'Hospital Logo'}
-                style={styles.logoImg}
-                loading="eager"
-              />
+              {displayLogoUrl ? (
+                <img
+                  src={displayLogoUrl}
+                  alt={trustInfo?.name || 'Hospital Logo'}
+                  style={styles.logoImg}
+                  loading="eager"
+                />
+              ) : (
+                <div style={styles.logoFallbackMonogram}>MM</div>
+              )}
             </div>
           </div>
 
@@ -331,6 +339,19 @@ const styles = {
     height: '144px',
     objectFit: 'contain',
     borderRadius: '50%',
+  },
+  logoFallbackMonogram: {
+    width: '144px',
+    height: '144px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'linear-gradient(135deg, #FDECEA 0%, #EAEBF8 100%)',
+    color: '#2B2F7E',
+    fontWeight: 800,
+    fontSize: '48px',
+    letterSpacing: '1px',
   },
   titleSection: {
     textAlign: 'center',

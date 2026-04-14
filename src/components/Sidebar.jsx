@@ -21,7 +21,7 @@ const calcCompletion = (profile, user) => {
   return Math.round((filled / fields.length) * 100);
 };
 
-const Sidebar = ({ isOpen, onClose, onNavigate, currentPage }) => {
+const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
   const sidebarRef = useRef(null);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
@@ -453,10 +453,14 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage }) => {
                 localStorage.removeItem('user');
                 localStorage.removeItem('isLoggedIn');
                 localStorage.removeItem('lastVisitedRoute');
+                localStorage.removeItem('selected_trust_id');
+                localStorage.removeItem('selected_trust_name');
                 sessionStorage.removeItem('selectedMember');
                 sessionStorage.removeItem('previousScreen');
                 sessionStorage.removeItem('previousScreenName');
-                navigate('/login', { replace: true });
+                sessionStorage.removeItem('trust_selected_in_session');
+                if (typeof onLogout === 'function') onLogout();
+                else navigate('/login', { replace: true });
                 if (onClose) onClose();
               }}
               className="w-full flex items-center justify-between px-4 rounded-xl font-bold active:opacity-80 transition-all active:scale-95 select-none"
@@ -476,4 +480,3 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage }) => {
 };
 
 export default Sidebar;
-

@@ -24,8 +24,7 @@ function OTPVerification() {
     let isActive = true;
     const loadTrust = async () => {
       try {
-        const defaultTrustName = import.meta.env.VITE_DEFAULT_TRUST_NAME || 'Mahila Mandal';
-        const namedTrust = await fetchTrustByName(defaultTrustName);
+        const namedTrust = await fetchTrustByName('Mahila Mandal');
         if (namedTrust) {
           setTrustInfo(namedTrust);
           if (namedTrust.id) localStorage.setItem('selected_trust_id', namedTrust.id);
