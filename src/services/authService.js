@@ -1,17 +1,13 @@
 // authService.js - Frontend auth helpers
 import { supabase } from './supabaseClient';
 const resolveDevAuthApiUrl = () => {
-  if (typeof window === 'undefined') return 'http://localhost:5002/api/auth';
-
-  const protocol = window.location.protocol || 'http:';
-  const hostname = window.location.hostname || 'localhost';
-  return `${protocol}//${hostname}:5002/api/auth`;
+  return 'https://mahila-mandal-ochre.vercel.app/api/auth';
 };
 
 const API_URL = import.meta.env.VITE_AUTH_API_URL ||
   (import.meta.env.DEV
     ? resolveDevAuthApiUrl()
-    : 'https://mah.contractmitra.in/api/auth');
+    : 'https://mahila-mandal-ochre.vercel.app/api/auth');
 
 const USE_MOCK_AUTH = import.meta.env.VITE_AUTH_MOCK === 'true';
 const MOCK_OTP = '123456';

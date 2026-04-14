@@ -15,18 +15,14 @@ const buildNotificationContentKey = (notification) => {
 // In emulator/device testing, localhost points to the device itself.
 // So in dev we derive backend host from current page host unless explicitly overridden.
 const resolveDevApiBaseUrl = () => {
-  if (typeof window === 'undefined') return 'http://localhost:5002/api';
-
-  const protocol = window.location.protocol || 'http:';
-  const hostname = window.location.hostname || 'localhost';
-  return `${protocol}//${hostname}:5002/api`;
+  return 'https://mahila-mandal-ochre.vercel.app/api';
 };
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV
     ? resolveDevApiBaseUrl()
-    : 'https://mah.contractmitra.in/api');
+    : 'https://mahila-mandal-ochre.vercel.app/api');
 
 
 // Create axios instance
