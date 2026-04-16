@@ -152,12 +152,25 @@ export const checkPhoneNumber = async (phoneNumber) => {
       // ── Check registered member status ──
       // A user is a registeredMember if:
       //   - has at least one reg_members row with a trust_id
-      //   - role is Trustee or Patron (case-insensitive)
+      //   - role is governance/leadership role (Trustee, Patron, Founder, President, etc.)
       //   - members_id is set
+      const governanceRoles = [
+        'trustee', 'patron',
+        'founder', 'president', 'maha mantri', 'chairman', 'vice-chairman',
+        'secretary', 'treasurer', 'chief patron', 'patron-in-chief',
+        'advisor', 'board member', 'governing body member'
+      ];
+      
+      const isGovernanceRole = (role) => {
+        if (!role) return false;
+        const normalized = String(role).trim().toLowerCase();
+        return governanceRoles.includes(normalized);
+      };
+
       const qualifiedMembership = activeMemberships.find(m =>
         m.trust_id &&
         m.members_id &&
-        ['trustee', 'patron'].includes((m.role || '').toLowerCase())
+        isGovernanceRole(m.role)
       );
 
       if (qualifiedMembership) {

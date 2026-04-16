@@ -63,12 +63,12 @@ const deleteOtherMembership = async (id) => {
   if (error) throw error;
 };
 
-// ─── Styles ────────────────────────────────────────────────────────────────
+// ─── Styles — use CSS variables so theme updates automatically ────────────
 const colors = {
-  primary: '#2B2F7E',
-  secondary: '#4B51B0',
-  accent: '#C0241A',
-  bg: 'linear-gradient(160deg, #f0f4ff 0%, #ffffff 50%, #f8f0ff 100%)',
+  primary:   'var(--brand-navy)',
+  secondary: 'var(--brand-navy-light)',
+  accent:    'var(--brand-red)',
+  bg:        'var(--app-page-bg)',
   card: '#fff',
   border: '#E8EDFF',
   muted: '#94a3b8',

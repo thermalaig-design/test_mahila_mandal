@@ -36,8 +36,9 @@ const DEFAULT_TRUST_NAME = 'Mahila Mandal';
 // ── Step definitions ──────────────────────────────────────────────────────────
 // step 'phone'     → enter phone number
 // step 'otp'       → enter OTP
-// step 'dashboard' → registered member VIP dashboard
-// step 'notmember' → phone verified but not a registered member
+// step 'dashboard' → governance/VIP member dashboard
+// step 'notmember' → phone verified but has NO trust membership at all (new user — show application form)
+// step 'existingmember' → has trust membership but not a governance role (redirect info)
 
 function VIPLogin({ onNavigate, onLogout }) {
   const navigate = useNavigate();
@@ -82,10 +83,11 @@ function VIPLogin({ onNavigate, onLogout }) {
   const [dashLoading, setDashLoading] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [selectedTrustId, setSelectedTrustId] = useState(() => localStorage.getItem('selected_trust_id') || '');
 
-  // Back: on dashboard → do nothing; on otp/notmember → go back to phone entry
+  // Back: on dashboard → do nothing; on otp/notmember/existingmember → go back to phone entry
   useBackNavigation(() => {
-    if (step === 'otp' || step === 'notmember') setStep('phone');
+    if (step === 'otp' || step === 'notmember' || step === 'existingmember') setStep('phone');
     else if (step === 'phone') navigate('/login');
     // dashboard: stay here
   });
@@ -111,6 +113,28 @@ function VIPLogin({ onNavigate, onLogout }) {
     }
   }, []);
 
+  useEffect(() => {
+    const syncTrustId = () => {
+      const next = localStorage.getItem('selected_trust_id') || '';
+      setSelectedTrustId((prev) => (prev === next ? prev : next));
+    };
+    const onTrustChanged = (event) => {
+      const next = event?.detail?.trustId || localStorage.getItem('selected_trust_id') || '';
+      setSelectedTrustId((prev) => (prev === next ? prev : next));
+    };
+    syncTrustId();
+    window.addEventListener('trust-changed', onTrustChanged);
+    window.addEventListener('focus', syncTrustId);
+    window.addEventListener('storage', syncTrustId);
+    document.addEventListener('visibilitychange', syncTrustId);
+    return () => {
+      window.removeEventListener('trust-changed', onTrustChanged);
+      window.removeEventListener('focus', syncTrustId);
+      window.removeEventListener('storage', syncTrustId);
+      document.removeEventListener('visibilitychange', syncTrustId);
+    };
+  }, []);
+
   // ── Load dashboard data when step = 'dashboard' ──────────────────────────────
   useEffect(() => {
     if (step !== 'dashboard') return;
@@ -123,22 +147,28 @@ function VIPLogin({ onNavigate, onLogout }) {
       if (!parsed?.isRegisteredMember) { navigate('/profile', { replace: true }); return; }
       setUser(parsed);
 
-      const trust =
-        parsed.primary_trust ||
-        parsed.trust ||
-        (parsed.hospital_memberships?.[0]
-          ? {
-              id: parsed.hospital_memberships[0].trust_id,
-              name: parsed.hospital_memberships[0].trust_name,
-              icon_url: parsed.hospital_memberships[0].trust_icon_url
-            }
-          : null);
-      if (trust) setTrustInfo(trust);
+      const selectedMembership = selectedTrustId
+        ? parsed.hospital_memberships?.find((m) => String(m?.trust_id || '') === String(selectedTrustId))
+        : null;
 
       const membership =
-        parsed.hospital_memberships?.find(m => m.is_active) ||
+        selectedMembership ||
+        parsed.hospital_memberships?.find((m) => m.is_active && m.trust_id) ||
         parsed.hospital_memberships?.[0] ||
         null;
+
+      const trust =
+        (membership
+          ? {
+              id: membership.trust_id,
+              name: membership.trust_name,
+              icon_url: membership.trust_icon_url
+            }
+          : null) ||
+        parsed.primary_trust ||
+        parsed.trust ||
+        null;
+      if (trust) setTrustInfo(trust);
 
       setMemberData({
         name: parsed.name || parsed['Name'] || 'Member',
@@ -161,7 +191,7 @@ function VIPLogin({ onNavigate, onLogout }) {
     } finally {
       setDashLoading(false);
     }
-  }, [step]);
+  }, [step, selectedTrustId]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const handlePhoneSubmit = async (e) => {
@@ -202,10 +232,17 @@ function VIPLogin({ onNavigate, onLogout }) {
       const tid = pendingUser?.primary_trust?.id || localStorage.getItem('selected_trust_id');
       const tname = pendingUser?.primary_trust?.name || localStorage.getItem('selected_trust_name');
       fetchDirectoryData(tid || null, tname || null).catch(() => {});
-      // Registered VIP member → VIP dashboard; regular member → Profile page
+      // Routing logic:
+      // 1. Governance/VIP role → VIP dashboard
+      // 2. Regular trust member (has memberships but not governance) → show info, go to profile
+      // 3. No memberships at all (brand new user) → show application form
       if (pendingUser?.isRegisteredMember) {
         setStep('dashboard');
+      } else if (pendingUser?.hospital_memberships?.length > 0) {
+        // User is a regular member of a trust but NOT a governance-role member
+        setStep('existingmember');
       } else {
+        // User has no trust membership at all — show VIP application form
         setApplicationForm(prev => ({
           ...prev,
           name: pendingUser?.name || pendingUser?.Name || prev.name,
@@ -457,7 +494,99 @@ function VIPLogin({ onNavigate, onLogout }) {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RENDER: Not a registered member
+  // RENDER: Already a member but NOT a governance/VIP role
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (step === 'existingmember') {
+    const existingTrust = pendingUser?.hospital_memberships?.[0];
+    const trustDisplayName = existingTrust?.trust_name || DEFAULT_TRUST_NAME;
+    const memberRole = existingTrust?.role || 'Member';
+    const memberNo = existingTrust?.membership_number || '';
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-yellow-50 flex flex-col px-4 py-8">
+        <button
+          onClick={() => { setStep('phone'); setOtp(''); setFormError(''); }}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-6 self-start"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-sm">
+            {/* Icon */}
+            <div className="text-center mb-6">
+              <div
+                className="w-20 h-20 rounded-3xl mx-auto mb-5 flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg,#dcfce7,#bbf7d0)' }}
+              >
+                <CheckCircle className="h-9 w-9 text-emerald-600" />
+              </div>
+              <h2 className="text-2xl font-extrabold text-gray-800 mb-2">Already a Member!</h2>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                Your number <span className="font-semibold text-gray-700">+91 {phoneNumber}</span> is
+                already registered as a member of{' '}
+                <span className="font-semibold text-amber-700">{trustDisplayName}</span>.
+              </p>
+            </div>
+
+            {/* Info card */}
+            <div className="rounded-3xl bg-white border border-amber-100 shadow-[0_14px_40px_rgba(245,158,11,0.12)] overflow-hidden mb-5">
+              <div className="px-5 py-4 border-b border-amber-100 bg-gradient-to-r from-amber-50 to-yellow-50">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-amber-600" />
+                  <p className="text-[13px] font-extrabold text-amber-800 uppercase tracking-wider">Your Membership</p>
+                </div>
+              </div>
+              <div className="px-5 py-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-500">Trust</span>
+                  <span className="text-sm font-bold text-gray-800">{trustDisplayName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-500">Role</span>
+                  <span className="text-sm font-bold text-gray-800 capitalize">{memberRole}</span>
+                </div>
+                {memberNo && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500">Membership No.</span>
+                    <span className="text-sm font-bold text-gray-800">{memberNo}</span>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-amber-50">
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    VIP login is for <span className="font-semibold text-amber-700">Trustees, Patrons &amp; governance-role members</span> only.
+                    To access your profile and membership details, please use the regular login.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <button
+              onClick={() => navigate('/profile')}
+              className="w-full py-4 rounded-2xl font-bold text-base text-white shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 mb-3"
+              style={{ background: 'linear-gradient(135deg,#b45309,#f59e0b)', boxShadow: '0 4px 16px rgba(180,83,9,0.25)' }}
+            >
+              <User className="h-5 w-5" />
+              Go to My Profile
+            </button>
+
+            <button
+              onClick={() => navigate('/')}
+              className="w-full py-4 rounded-2xl font-bold text-base text-gray-700 bg-white border border-amber-200 hover:bg-amber-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            >
+              <Home className="h-5 w-5 text-amber-500" />
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RENDER: Not a registered member (truly new user, no memberships)
   // ═══════════════════════════════════════════════════════════════════════════
   if (step === 'notmember') {
     return (

@@ -1,3 +1,4 @@
+﻿import { useAppTheme } from './context/ThemeContext';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Image as ImageIcon, X, ChevronLeft, ChevronRight, Menu, Home as HomeIcon, FolderOpen, Play, Pause } from 'lucide-react';
@@ -6,6 +7,7 @@ import Sidebar from './components/Sidebar';
 
 export function Gallery({ onNavigate }) {
   const navigate = useNavigate();
+  const theme = useAppTheme();
   const [selectedImage, setSelectedImage] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [images, setImages] = useState([]);
@@ -210,7 +212,7 @@ export function Gallery({ onNavigate }) {
       {/* Navbar - Brand theme */}
       <div
         className="px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md pointer-events-auto"
-        style={{ background: 'linear-gradient(135deg, #C0241A 0%, #9B1A13 35%, #2B2F7E 100%)', paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}
+        style={{ background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`, paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}
       >
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -273,7 +275,7 @@ export function Gallery({ onNavigate }) {
               </button>
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 capitalize">{currentFolderName}</h2>
-                <p className="text-gray-500 text-sm mt-1">{filteredImages.length} {filteredImages.length === 1 ? 'photo' : 'photos'} {totalPages > 1 && `• Page ${currentPage} of ${totalPages}`}</p>
+                <p className="text-gray-500 text-sm mt-1">{filteredImages.length} {filteredImages.length === 1 ? 'photo' : 'photos'} {totalPages > 1 && `â€¢ Page ${currentPage} of ${totalPages}`}</p>
               </div>
             </div>
           )}
@@ -346,7 +348,7 @@ export function Gallery({ onNavigate }) {
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
                     className="p-2 rounded-lg text-white hover:opacity-90 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
-                    style={{ background: currentPage === 1 ? undefined : 'linear-gradient(135deg, #C0241A, #2B2F7E)' }}
+                    style={{ background: currentPage === 1 ? undefined : 'linear-gradient(135deg, var(--brand-red), var(--brand-navy))' }}
                     title="Previous page"
                   >
                     <ChevronLeft className="h-5 w-5" />
@@ -359,7 +361,7 @@ export function Gallery({ onNavigate }) {
                         onClick={() => setCurrentPage(page)}
                         className="w-10 h-10 rounded-lg font-bold transition-all text-sm"
                         style={currentPage === page
-                          ? { background: 'linear-gradient(135deg, #C0241A, #2B2F7E)', color: '#fff', boxShadow: '0 4px 12px rgba(192,36,26,0.25)' }
+                          ? { background: 'linear-gradient(135deg, var(--brand-red), var(--brand-navy))', color: '#fff', boxShadow: '0 4px 12px rgba(192,36,26,0.25)' }
                           : { background: '#e5e7eb', color: '#374151' }
                         }
                       >
@@ -372,7 +374,7 @@ export function Gallery({ onNavigate }) {
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
                     className="p-2 rounded-lg text-white hover:opacity-90 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all"
-                    style={{ background: currentPage === totalPages ? undefined : 'linear-gradient(135deg, #C0241A, #2B2F7E)' }}
+                    style={{ background: currentPage === totalPages ? undefined : 'linear-gradient(135deg, var(--brand-red), var(--brand-navy))' }}
                     title="Next page"
                   >
                     <ChevronRight className="h-5 w-5" />

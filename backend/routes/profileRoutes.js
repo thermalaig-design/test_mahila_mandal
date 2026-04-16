@@ -21,36 +21,167 @@ const upload = multer({
   }
 });
 
+const normalizeDigits = (value) => String(value || '').replace(/\D/g, '');
+const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+const readMemberValue = (member, keys = []) => {
+  for (const key of keys) {
+    const value = member?.[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return value;
+    }
+  }
+  return '';
+};
+
+const resolveMemberContext = async ({ userIdHeader, membersIdHeader, trustIdHeader, profileData = null }) => {
+  const identifiers = [
+    userIdHeader,
+    membersIdHeader,
+    profileData?.memberId,
+    profileData?.mobile
+  ].filter(Boolean).map((v) => String(v).trim());
+
+  let member = null;
+
+  // 1) Direct by members_id (most reliable)
+  for (const candidate of [membersIdHeader, userIdHeader, profileData?.members_id, profileData?.id]) {
+    if (!candidate) continue;
+    if (!isUuid(candidate)) continue;
+    const { data } = await supabase
+      .from('Members')
+      .select('*')
+      .eq('members_id', String(candidate).trim())
+      .maybeSingle();
+    if (data?.members_id) {
+      member = data;
+      break;
+    }
+  }
+
+  // 2) By membership number in Members table
+  if (!member) {
+    for (const candidate of identifiers) {
+      const { data } = await supabase
+        .from('Members')
+        .select('*')
+        .eq('Membership number', candidate)
+        .maybeSingle();
+      if (data?.members_id) {
+        member = data;
+        break;
+      }
+    }
+  }
+
+  // 3) By mobile in Members table (handle formatting differences)
+  if (!member) {
+    const digits = Array.from(new Set(identifiers.map(normalizeDigits).filter(Boolean)));
+    for (const d of digits) {
+      const variants = Array.from(new Set([d, d.slice(-10), `+91${d.slice(-10)}`].filter(Boolean)));
+      for (const variant of variants) {
+        const { data } = await supabase
+          .from('Members')
+          .select('*')
+          .eq('Mobile', variant)
+          .maybeSingle();
+        if (data?.members_id) {
+          member = data;
+          break;
+        }
+      }
+      if (member) break;
+    }
+  }
+
+  // 4) If still not found, resolve via reg_members membership and then fetch Members by members_id
+  if (!member) {
+    for (const candidate of identifiers) {
+      let regQuery = supabase
+        .from('reg_members')
+        .select('members_id')
+        .eq('Membership number', candidate)
+        .limit(1);
+      if (trustIdHeader) {
+        regQuery = regQuery.eq('trust_id', trustIdHeader);
+      }
+      const { data: regByMembership } = await regQuery;
+      const resolvedMembersId = regByMembership?.[0]?.members_id;
+      if (!resolvedMembersId) continue;
+      const { data } = await supabase
+        .from('Members')
+        .select('*')
+        .eq('members_id', resolvedMembersId)
+        .maybeSingle();
+      if (data?.members_id) {
+        member = data;
+        break;
+      }
+    }
+  }
+
+  if (!member?.members_id) {
+    const mobileDigits = normalizeDigits(profileData?.mobile || userIdHeader);
+    if (mobileDigits && mobileDigits.length >= 10) {
+      const normalizedMobile = mobileDigits.slice(-10);
+      // Last-resort fallback: create/find minimal Members row so profile can be saved.
+      const { data: insertedMember, error: insertErr } = await supabase
+        .from('Members')
+        .insert({ Mobile: normalizedMobile })
+        .select('*')
+        .maybeSingle();
+      if (!insertErr && insertedMember?.members_id) {
+        member = insertedMember;
+      } else {
+        const { data: existingByMobile } = await supabase
+          .from('Members')
+          .select('*')
+          .eq('Mobile', normalizedMobile)
+          .limit(1);
+        if (existingByMobile?.[0]?.members_id) {
+          member = existingByMobile[0];
+        }
+      }
+    }
+  }
+
+  if (!member?.members_id) {
+    return { member: null, activeMembership: null };
+  }
+
+  let membershipQuery = supabase
+    .from('reg_members')
+    .select('id, trust_id, role, is_active, joined_date, "Membership number"')
+    .eq('members_id', member.members_id)
+    .order('joined_date', { ascending: false });
+
+  if (trustIdHeader) {
+    membershipQuery = membershipQuery.eq('trust_id', trustIdHeader);
+  }
+
+  const { data: memberships } = await membershipQuery;
+  const activeMembership =
+    (memberships || []).find((m) => m?.is_active === true) ||
+    (memberships || [])[0] ||
+    null;
+
+  return { member, activeMembership };
+};
+
 // Get user profile
 router.get('/', async (req, res) => {
   try {
     const userIdHeader = req.headers['user-id'];
+    const membersIdHeader = req.headers['members-id'];
+    const trustIdHeader = req.headers['trust-id'];
     if (!userIdHeader) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    
-    // Resolve member by membership number or mobile
-    let { data: member, error: memberErr } = await supabase
-      .from('Members')
-      .select('*')
-      .eq('Membership number', userIdHeader)
-      .maybeSingle();
 
-    if (memberErr) {
-      console.error('Fetch Members error:', memberErr);
-    }
-
-    if (!member) {
-      const { data: memberByMobile, error: mobileErr } = await supabase
-        .from('Members')
-        .select('*')
-        .eq('Mobile', userIdHeader)
-        .maybeSingle();
-      if (mobileErr) {
-        console.error('Fetch Members by mobile error:', mobileErr);
-      }
-      member = memberByMobile;
-    }
+    const { member, activeMembership } = await resolveMemberContext({
+      userIdHeader,
+      membersIdHeader,
+      trustIdHeader
+    });
 
     if (!member?.members_id) {
       return res.json({ success: true, profile: null });
@@ -80,11 +211,11 @@ router.get('/', async (req, res) => {
     }
 
     const mergedProfile = {
-      name: member?.Name || '',
-      role: member?.role || member?.Role || 'Trustee',
-      memberId: member?.['Membership number'] || '',
-      mobile: member?.Mobile || '',
-      email: member?.Email || '',
+      name: readMemberValue(member, ['Name', 'name', 'Full Name', 'full_name']),
+      role: activeMembership?.role || member?.role || member?.Role || 'Trustee',
+      memberId: activeMembership?.['Membership number'] || member?.['Membership number'] || '',
+      mobile: readMemberValue(member, ['Mobile', 'mobile']),
+      email: readMemberValue(member, ['Email', 'email']),
       address_home: member?.['Address Home'] || '',
       address_office: member?.['Address Office'] || '',
       company_name: member?.['Company Name'] || '',
@@ -126,6 +257,8 @@ router.get('/', async (req, res) => {
 router.post('/save', upload.single('profilePhoto'), async (req, res) => {
   try {
     const userIdHeader = req.headers['user-id'];
+    const membersIdHeader = req.headers['members-id'];
+    const trustIdHeader = req.headers['trust-id'];
     if (!userIdHeader) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
@@ -135,29 +268,12 @@ router.post('/save', upload.single('profilePhoto'), async (req, res) => {
 
     let profilePhotoUrl = profileData.profilePhotoUrl || profileData.profile_photo_url || '';
 
-    // Resolve member by membership number or mobile
-    const lookupId = profileData.memberId || userIdHeader;
-    let { data: member, error: memberErr } = await supabase
-      .from('Members')
-      .select('*')
-      .eq('Membership number', lookupId)
-      .maybeSingle();
-
-    if (memberErr) {
-      console.error('Fetch Members error:', memberErr);
-    }
-
-    if (!member) {
-      const { data: memberByMobile, error: mobileErr } = await supabase
-        .from('Members')
-        .select('*')
-        .eq('Mobile', lookupId)
-        .maybeSingle();
-      if (mobileErr) {
-        console.error('Fetch Members by mobile error:', mobileErr);
-      }
-      member = memberByMobile;
-    }
+    const { member, activeMembership } = await resolveMemberContext({
+      userIdHeader,
+      membersIdHeader,
+      trustIdHeader,
+      profileData
+    });
 
     if (!member?.members_id) {
       return res.status(404).json({ success: false, message: 'Member not found' });
@@ -274,11 +390,11 @@ router.post('/save', upload.single('profilePhoto'), async (req, res) => {
     }
 
     const responseProfile = {
-      name: member?.Name || '',
-      role: member?.role || member?.Role || 'Trustee',
-      memberId: member?.['Membership number'] || '',
-      mobile: member?.Mobile || '',
-      email: member?.Email || '',
+      name: readMemberValue(member, ['Name', 'name', 'Full Name', 'full_name']),
+      role: activeMembership?.role || member?.role || member?.Role || 'Trustee',
+      memberId: activeMembership?.['Membership number'] || member?.['Membership number'] || '',
+      mobile: readMemberValue(member, ['Mobile', 'mobile']),
+      email: readMemberValue(member, ['Email', 'email']),
       address_home: member?.['Address Home'] || '',
       address_office: member?.['Address Office'] || '',
       company_name: member?.['Company Name'] || '',

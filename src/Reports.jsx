@@ -1,9 +1,11 @@
+import { useAppTheme } from './context/ThemeContext';
 import React, { useState, useEffect, useRef } from 'react';
 import { FileText, Plus, Calendar, Download, X, Home as HomeIcon, ChevronLeft, Upload, CheckCircle, AlertCircle, Image as ImageIcon, File, Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import { getUserReports, uploadUserReport } from './services/api';
 
 const Reports = ({ onNavigate }) => {
+  const theme = useAppTheme();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showUploadForm, setShowUploadForm] = useState(false);
@@ -213,7 +215,7 @@ const Reports = ({ onNavigate }) => {
       className={`bg-white min-h-screen pb-10 relative${isMenuOpen ? ' overflow-hidden max-h-screen' : ''}`}
     >
       {/* Navbar */}
-      <div className="bg-white border-gray-200 shadow-sm border-b px-6 py-5 flex items-center justify-between sticky top-0 z-50 transition-all duration-300 pointer-events-auto" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)' }}>
+      <div className="theme-navbar shadow-sm border-b px-6 py-5 flex items-center justify-between sticky top-0 z-50 transition-all duration-300 pointer-events-auto" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)' }}>
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="p-2 rounded-xl hover:bg-gray-100 transition-colors pointer-events-auto"
@@ -223,7 +225,7 @@ const Reports = ({ onNavigate }) => {
         <h1 className="text-lg font-bold text-gray-800 transition-colors">My Reports</h1>
         <button
           onClick={() => onNavigate('home')}
-          className="p-2 rounded-xl transition-colors flex items-center justify-center text-indigo-600 hover:bg-gray-100"
+          className="p-2 rounded-xl transition-colors flex items-center justify-center hover:bg-gray-100" style={{ color: theme.primary }}
         >
           <HomeIcon className="h-5 w-5" />
         </button>
@@ -240,7 +242,7 @@ const Reports = ({ onNavigate }) => {
       <div className="px-6 pt-6 pb-4">
         <div className="flex items-center gap-4">
           <div className="bg-indigo-50 p-3 rounded-2xl">
-            <FileText className="h-8 w-8 text-indigo-600" />
+            <FileText className="h-8 w-8 theme-primary-icon" style={{ color: "var(--brand-navy)" }} />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Medical Reports</h1>
@@ -279,7 +281,7 @@ const Reports = ({ onNavigate }) => {
         <div className="px-6 mt-4">
           <button
             onClick={() => setShowUploadForm(true)}
-            className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+            className="w-full text-white py-3.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 btn-brand"
           >
             <Plus className="h-5 w-5" />
             Upload New Report
@@ -397,7 +399,7 @@ const Reports = ({ onNavigate }) => {
               <button
                 onClick={handleUpload}
                 disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-white py-3.5 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed btn-brand"
               >
                 {loading ? (
                   <>
@@ -424,7 +426,7 @@ const Reports = ({ onNavigate }) => {
 
         {loading && reports.length === 0 ? (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-600 border-t-transparent mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-transparent mx-auto" style={{ borderColor: 'var(--brand-navy)', borderTopColor: 'transparent' }}></div>
             <p className="text-gray-500 text-sm mt-4">Loading reports...</p>
           </div>
         ) : reports.length === 0 ? (
@@ -434,7 +436,7 @@ const Reports = ({ onNavigate }) => {
             <p className="text-gray-500 text-sm mb-4">Upload your first medical report to get started</p>
             <button
               onClick={() => setShowUploadForm(true)}
-              className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-700 transition-all"
+              className="text-white px-6 py-2 rounded-xl font-semibold text-sm transition-all btn-brand"
             >
               Upload Report
             </button>
@@ -468,7 +470,7 @@ const Reports = ({ onNavigate }) => {
                     href={report.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-indigo-600 text-white p-2.5 rounded-xl hover:bg-indigo-700 transition-all flex-shrink-0"
+                    className="text-white p-2.5 rounded-xl transition-all flex-shrink-0 btn-brand"
                   >
                     <Download className="h-5 w-5" />
                   </a>

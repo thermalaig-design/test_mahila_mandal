@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Bell, ChevronRight, Home as HomeIcon, Menu, X, Check, Calendar, User, Stethoscope, Clock, MapPin, Building2, FileText } from 'lucide-react';
 import { getUserNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification } from './services/api';
 import { supabase } from './services/supabaseClient';
 import { getCurrentNotificationContext, matchesNotificationForContext } from './services/notificationAudience';
 import Sidebar from './components/Sidebar';
+import { useAppTheme } from './context/ThemeContext';
 
 const buildNotificationContentKey = (notification) => {
   const title = String(notification?.title || '').trim().toLowerCase();
@@ -25,6 +26,7 @@ const dedupeNotificationsByContent = (notifications) => {
 };
 
 const Notifications = ({ onNavigate }) => {
+  const theme = useAppTheme();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -83,19 +85,19 @@ const Notifications = ({ onNavigate }) => {
     fetchNotifications();
     subscribeToNotifications();
 
-    // ✅ NEW: Add event listeners for notification updates
+    // âœ… NEW: Add event listeners for notification updates
     const handlePushNotificationArrived = () => {
-      console.log('📬 Push notification arrived - Notifications page will refetch');
+      console.log('ðŸ“¬ Push notification arrived - Notifications page will refetch');
       fetchNotifications();
     };
 
     const handlePushNotificationClicked = () => {
-      console.log('🔔 Push notification clicked - Notifications page refetching');
+      console.log('ðŸ”” Push notification clicked - Notifications page refetching');
       fetchNotifications();
     };
 
     const handleAppResumed = () => {
-      console.log('📱 App resumed - Notifications page refetching');
+      console.log('ðŸ“± App resumed - Notifications page refetching');
       fetchNotifications();
     };
 
@@ -266,12 +268,12 @@ const Notifications = ({ onNavigate }) => {
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="p-2 rounded-xl hover:bg-gray-100 transition-colors pointer-events-auto"
         >
-          {isMenuOpen ? <X className="h-6 w-6 text-gray-700" /> : <Menu className="h-6 w-6 text-gray-700" />}
+          {isMenuOpen ? <X className="h-6 w-6" style={{ color: theme.secondary }} /> : <Menu className="h-6 w-6" style={{ color: theme.secondary }} />}
         </button>
-        <h1 className="text-lg font-bold text-gray-800 transition-colors">Notifications</h1>
+        <h1 className="text-lg font-bold transition-colors" style={{ color: theme.secondary }}>Notifications</h1>
         <button
           onClick={() => onNavigate('home')}
-          className="p-2 rounded-xl transition-colors flex items-center justify-center text-indigo-600 hover:bg-gray-100"
+          className="p-2 rounded-xl transition-colors flex items-center justify-center hover:bg-gray-100" style={{ color: theme.primary }}
         >
           <HomeIcon className="h-5 w-5" />
         </button>
@@ -288,7 +290,7 @@ const Notifications = ({ onNavigate }) => {
       <div className="bg-white px-6 pt-6 pb-4">
         <div className="flex items-center gap-4">
           <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100">
-            <Bell className="h-12 w-12 text-indigo-600" />
+            <Bell className="h-12 w-12" style={{ color: theme.secondary }} />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Notifications</h1>
@@ -306,7 +308,7 @@ const Notifications = ({ onNavigate }) => {
           {unreadCount > 0 && (
             <button
               onClick={handleMarkAllAsRead}
-              className="text-xs text-indigo-600 font-semibold hover:text-indigo-700"
+              className="text-xs font-semibold" style={{ color: theme.primary }}
             >
               Mark all as read
             </button>
@@ -361,7 +363,7 @@ const Notifications = ({ onNavigate }) => {
             </p>
             <button
               onClick={() => onNavigate('home')}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors"
+              className="mt-4 px-4 py-2 text-white rounded-xl text-sm font-semibold transition-colors btn-brand"
             >
               Back to Home
             </button>
@@ -394,7 +396,7 @@ const Notifications = ({ onNavigate }) => {
                 </h4>
                 {!notification.is_read && (
                   <div className="flex-shrink-0 ml-2">
-                    <div className="w-2 h-2 bg-indigo-600 rounded-full"></div>
+                    <div className="w-2 h-2 rounded-full" style={{ background: theme.primary }}></div>
                   </div>
                 )}
               </div>
@@ -414,7 +416,7 @@ const Notifications = ({ onNavigate }) => {
                       e.stopPropagation();
                       handleMarkAsRead(notification.id);
                     }}
-                    className="text-xs text-indigo-600 font-semibold hover:text-indigo-700 flex items-center gap-1"
+                    className="text-xs font-semibold hover:opacity-80 flex items-center gap-1" style={{ color: theme.primary }}
                   >
                     <Check className="h-3 w-3" />
                     Mark as read
@@ -450,11 +452,11 @@ const Notifications = ({ onNavigate }) => {
               {/* Scrollable body */}
               <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
                 {/* Title */}
-                <p className="text-sm font-semibold text-indigo-700">{selectedNotification.title}</p>
+                <p className="text-sm font-semibold" style={{ color: theme.secondary }}>{selectedNotification.title}</p>
 
                 {/* Patient Name */}
                 {patientName && (
-                  <div className="bg-indigo-50 rounded-lg p-3">
+                  <div className="rounded-lg p-3" style={{ background: `color-mix(in srgb, ${theme.secondary} 8%, white)` }}>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Patient</p>
                     <p className="text-sm font-semibold text-gray-900">{patientName}</p>
                   </div>
@@ -465,10 +467,10 @@ const Notifications = ({ onNavigate }) => {
                   <div className="bg-blue-50 rounded-lg p-3 border-l-4 border-blue-500">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Doctor</p>
                     {doctorName && (
-                      <p className="text-sm font-semibold text-blue-900 mb-1">👨‍⚕️ {doctorName}</p>
+                      <p className="text-sm font-semibold text-blue-900 mb-1">ðŸ‘¨â€âš•ï¸ {doctorName}</p>
                     )}
                     {department && !department.includes('Not specified') && (
-                      <p className="text-xs text-blue-700">🏥 {department}</p>
+                      <p className="text-xs text-blue-700">ðŸ¥ {department}</p>
                     )}
                   </div>
                 )}
@@ -477,7 +479,7 @@ const Notifications = ({ onNavigate }) => {
                 {dateTime && !dateTime.includes('Not specified') && (
                   <div className="bg-green-50 rounded-lg p-3 border-l-4 border-green-500">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Appointment</p>
-                    <p className="text-sm font-semibold text-green-900">📅 {dateTime}</p>
+                    <p className="text-sm font-semibold text-green-900">ðŸ“… {dateTime}</p>
                   </div>
                 )}
 
@@ -498,7 +500,7 @@ const Notifications = ({ onNavigate }) => {
               <div className="px-6 py-4 border-t border-gray-100">
                 <button
                   onClick={closeDetailModal}
-                  className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-semibold text-sm hover:bg-indigo-700 transition-colors"
+                  className="w-full py-2.5 text-white rounded-xl font-semibold text-sm transition-colors btn-brand"
                 >
                   Close
                 </button>
@@ -514,8 +516,8 @@ const Notifications = ({ onNavigate }) => {
 
 // Helper functions to extract details from formatted messages
 const extractPatientName = (message) => {
-  // Pattern: 👤 Patient: [Name]
-  const match = message.match(/👤 Patient:\s*([^\n]+)/i);
+  // Pattern: ðŸ‘¤ Patient: [Name]
+  const match = message.match(/ðŸ‘¤ Patient:\s*([^\n]+)/i);
   if (match) return match[1].trim();
 
   // Pattern: Hello [Name],
@@ -533,8 +535,8 @@ const extractDoctorName = (message) => {
     return name.startsWith('Dr.') ? name : `Dr. ${name}`;
   }
 
-  // Pattern: 👨‍⚕️ Doctor: Dr. [Name] or 👨‍⚕️ Referred To: Dr. [Name]
-  const emojiMatch = message.match(/👨‍⚕️\s+(?:Doctor|Referred To):\s*Dr\.\s*([^\n]+)/i);
+  // Pattern: ðŸ‘¨â€âš•ï¸ Doctor: Dr. [Name] or ðŸ‘¨â€âš•ï¸ Referred To: Dr. [Name]
+  const emojiMatch = message.match(/ðŸ‘¨â€âš•ï¸\s+(?:Doctor|Referred To):\s*Dr\.\s*([^\n]+)/i);
   if (emojiMatch) return 'Dr. ' + emojiMatch[1].trim();
 
   // Pattern: with Dr. [Name]
@@ -577,10 +579,10 @@ const extractDateTime = (message) => {
     return dateStr;
   }
 
-  // Pattern: 📅 Previous Date & Time: [date] [time]
-  // Pattern: ➡️ New Date & Time: [date] [time]
-  const previousMatch = message.match(/📅\s*Previous\s+Date\s+&\s+Time:\s*([^\n]+)/i);
-  const newMatch = message.match(/➡️\s*New\s+Date\s+&\s+Time:\s*([^\n]+)/i);
+  // Pattern: ðŸ“… Previous Date & Time: [date] [time]
+  // Pattern: âž¡ï¸ New Date & Time: [date] [time]
+  const previousMatch = message.match(/ðŸ“…\s*Previous\s+Date\s+&\s+Time:\s*([^\n]+)/i);
+  const newMatch = message.match(/âž¡ï¸\s*New\s+Date\s+&\s+Time:\s*([^\n]+)/i);
 
   if (previousMatch && newMatch) {
     const prevParts = previousMatch[1].trim().split(/\s+/);
@@ -593,10 +595,10 @@ const extractDateTime = (message) => {
     return `Previous: ${formatDate(prevDate)} ${prevTime}\nNew: ${formatDate(newDate)} ${newTime}`;
   }
 
-  // Pattern: 📅 Appointment Date: [date]
-  // Pattern: 🕐 Appointment Time: [time]
-  const dateMatch = message.match(/📅\s*Appointment\s+Date:\s*([^\n]+)/i);
-  const timeMatch = message.match(/🕐\s*Appointment\s+Time:\s*([^\n]+)/i);
+  // Pattern: ðŸ“… Appointment Date: [date]
+  // Pattern: ðŸ• Appointment Time: [time]
+  const dateMatch = message.match(/ðŸ“…\s*Appointment\s+Date:\s*([^\n]+)/i);
+  const timeMatch = message.match(/ðŸ•\s*Appointment\s+Time:\s*([^\n]+)/i);
 
   if (dateMatch && timeMatch) {
     return `${formatDate(dateMatch[1].trim())} at ${timeMatch[1].trim()}`;
@@ -612,16 +614,16 @@ const extractDepartment = (message) => {
   const match = message.match(/Department:\s*([^\n]+)/i);
   if (match) return match[1].trim();
   
-  // Pattern: 🏥 Department: [Department]
-  const emojiMatch = message.match(/🏥\s*Department:\s*([^\n]+)/i);
+  // Pattern: ðŸ¥ Department: [Department]
+  const emojiMatch = message.match(/ðŸ¥\s*Department:\s*([^\n]+)/i);
   if (emojiMatch) return emojiMatch[1].trim();
   
   return null;
 };
 
 const extractCategory = (message) => {
-  // Pattern: 📋 Category: [Category]
-  const match = message.match(/📋\s*Category:\s*([^\n]+)/i);
+  // Pattern: ðŸ“‹ Category: [Category]
+  const match = message.match(/ðŸ“‹\s*Category:\s*([^\n]+)/i);
   if (match) return match[1].trim();
   return null;
 };

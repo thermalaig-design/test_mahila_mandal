@@ -6,8 +6,9 @@ import { bookAppointment } from './services/appointmentService';
 import { supabase } from './services/supabaseClient';
 import Sidebar from './components/Sidebar';
 import { registerSidebarState, useAndroidBack } from './hooks';
+import { useAppTheme } from './context/ThemeContext';
 
-// Specialty ID → department keyword mapping (matches opd_schedule.department)
+// Specialty ID â†’ department keyword mapping (matches opd_schedule.department)
 // Keywords are matched using .toLowerCase().includes() against doctor's department field
 const SPECIALTY_DEPT_MAP = {
   medicine: 'medicine',
@@ -116,6 +117,7 @@ const SPECIALTIES = [
 
 
 const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
+  const theme = useAppTheme();
   const mainContainerRef = useRef(null);
   const [view, setView] = useState('specialties'); // 'specialties' | 'doctors' | 'doctorDetail' | 'slots' | 'form' | 'billing' | 'history'
   const [appointmentHistory, setAppointmentHistory] = useState([]);
@@ -280,7 +282,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
     }));
   };
 
-  // Select a specialty — fetch doctors from Supabase and show listing
+  // Select a specialty â€” fetch doctors from Supabase and show listing
   const handleSpecialtySelect = async (specialty) => {
     setSelectedSpecialty(specialty);
     setAppointmentForm(prev => ({ ...prev, reason: specialty.label, category: specialty.id }));
@@ -297,7 +299,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         setDoctors(source);
       }
         const filtered = (source || []).filter(doc => matchesDepartment(doc, deptKeyword));
-        console.log('🧪 Specialty filter', {
+        console.log('ðŸ§ª Specialty filter', {
           specialty: specialty?.label,
           deptKeyword,
           totalDoctors: (source || []).length,
@@ -313,7 +315,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
   };
 
 
-  // ────── Slot helpers ──────
+  // â”€â”€â”€â”€â”€â”€ Slot helpers â”€â”€â”€â”€â”€â”€
   // Parse day-string like "Mon, Wed, Fri" or "Monday-Friday" into abbreviated day names
   const parseDays = (dayStr) => {
     if (!dayStr) return [];
@@ -325,7 +327,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
     const lower = dayStr.toLowerCase();
     if (lower.includes('daily') || lower.includes('all')) return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     // Handle range like Mon-Fri
-    const rangeMatch = lower.match(/(\w+)\s*[-–]\s*(\w+)/);
+    const rangeMatch = lower.match(/(\w+)\s*[-â€“]\s*(\w+)/);
     if (rangeMatch) {
       const allDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       const start = dayMap[rangeMatch[1]];
@@ -396,7 +398,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
     }
   };
 
-  // Generate time slots from start→end with given duration
+  // Generate time slots from startâ†’end with given duration
   const generateTimeSlots = (start, end, durationMins) => {
     const slots = [];
     const startM = timeToMinutes(start);
@@ -562,7 +564,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
   }, [isMenuOpen]);
 
   // Register Android hardware back handler for internal appointment views
-  // Use refs to hold stable references — functions from useAndroidBack() change
+  // Use refs to hold stable references â€” functions from useAndroidBack() change
   // reference every render which would cause an infinite loop if put in deps array.
   const { registerBackHandler, unregisterHandler } = useAndroidBack();
   const registerBackHandlerRef = useRef(registerBackHandler);
@@ -749,16 +751,16 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         const trustId = localStorage.getItem('selected_trust_id') || null;
         const trustName = localStorage.getItem('selected_trust_name') || null;
         const response = await getDoctorsWithSchedule({ trustId, trustName });
-        console.log('✅ Fetched doctors:', response);
+        console.log('âœ… Fetched doctors:', response);
         const list = response?.data || [];
         const deptSet = new Set(list.map(d => d?.department).filter(Boolean));
-        console.log('🧪 Doctor departments (sample):', [...deptSet].slice(0, 20));
+        console.log('ðŸ§ª Doctor departments (sample):', [...deptSet].slice(0, 20));
         const emptyDeptCount = list.filter(d => !d?.department).length;
-        console.log('🧪 Doctors missing department:', emptyDeptCount, '/', list.length);
+        console.log('ðŸ§ª Doctors missing department:', emptyDeptCount, '/', list.length);
         setDoctors(response.data || []);
         setError('');
       } catch (error) {
-        console.error('❌ Error fetching doctors:', error);
+        console.error('âŒ Error fetching doctors:', error);
         setError('Failed to load doctors. Please try again.');
         setDoctors([]);
       } finally {
@@ -841,7 +843,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
       return;
     }
 
-    // Prepare appointment data (not saved yet — shown on billing page first)
+    // Prepare appointment data (not saved yet â€” shown on billing page first)
     const opdFee = appointmentForm.opdType === 'Private OPD'
       ? (selectedDoc?.private_fee ?? (selectedDoc?.consultation_fee || null))
       : (selectedDoc?.general_fee ?? (selectedDoc?.consultation_fee || null));
@@ -893,10 +895,10 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
     setSubmitting(true);
     setError('');
     try {
-      console.log('📤 Confirming appointment:', pendingAppointmentData);
+      console.log('ðŸ“¤ Confirming appointment:', pendingAppointmentData);
 
       const response = await bookAppointment(pendingAppointmentData);
-      console.log('✅ Appointment booked successfully:', response);
+      console.log('âœ… Appointment booked successfully:', response);
 
       const appointmentId = response?.data?.id || response?.id || '';
       const backendNotificationSent = response?.notificationSent === true;
@@ -919,7 +921,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
           `Appointment ID: #${appointmentId || 'N/A'} | Status: Booked`;
         const notificationPayload = {
           user_id: recipientId,
-          title: '✅ Appointment Booked',
+          title: 'âœ… Appointment Booked',
           message: bookingMsg,
           type: 'appointment_insert',
           is_read: false,
@@ -929,7 +931,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         if (recipientId) {
           const { error: notifError } = await supabase.from('notifications').insert(notificationPayload);
           if (notifError) {
-            console.error('⚠️ Fallback booking notification failed:', notifError);
+            console.error('âš ï¸ Fallback booking notification failed:', notifError);
           }
         }
       }
@@ -940,7 +942,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
       fetchAppointmentHistory();
 
     } catch (error) {
-      console.error('❌ Error booking appointment:', error);
+      console.error('âŒ Error booking appointment:', error);
       setError(error.message || 'Failed to book appointment. Please try again.');
     } finally {
       setSubmitting(false);
@@ -968,10 +970,10 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         bookedAppointmentData?.patient_name ||
         appointmentHistory.find(a => a.id === apptId)?.patient_name ||
         'Patient';
-      const cancelMsg = `❌ Appointment Cancelled\n👤 ${patientName}\n🆔 #${apptId || ''}`;
+      const cancelMsg = `âŒ Appointment Cancelled\nðŸ‘¤ ${patientName}\nðŸ†” #${apptId || ''}`;
       await supabase.from('notifications').insert({
         user_id: patientPhone,
-        title: '❌ Appointment Cancelled',
+        title: 'âŒ Appointment Cancelled',
         message: cancelMsg,
         type: 'appointment_update',
         is_read: false,
@@ -1027,9 +1029,9 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="p-2 rounded-xl hover:bg-gray-100 transition-colors pointer-events-auto"
         >
-          {isMenuOpen ? <X className="h-6 w-6 text-gray-700" /> : <Menu className="h-6 w-6 text-gray-700" />}
+          {isMenuOpen ? <X className="h-6 w-6" style={{ color: theme.secondary }} /> : <Menu className="h-6 w-6" style={{ color: theme.secondary }} />}
         </button>
-        <h1 className="text-lg font-bold text-gray-800 transition-colors">
+        <h1 className="text-lg font-bold transition-colors" style={{ color: theme.secondary }}>
           {view === 'specialties' ? 'OPD Schedule' : view === 'doctors' ? (selectedSpecialty?.label || 'Doctors') : view === 'doctorDetail' ? 'Doctor Profile' : view === 'slots' ? 'Select Slot' : view === 'history' ? 'OPD Schedule History' : view === 'billing' ? 'OPD Schedule Summary' : 'OPD Schedule'}
         </h1>
         <div className="flex items-center gap-2">
@@ -1043,14 +1045,14 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
               else if (view === 'history') setView('specialties');
               else onNavigate('home');
             }}
-            className="p-2 rounded-xl transition-colors flex items-center justify-center text-indigo-600 hover:bg-gray-100"
+            className="p-2 rounded-xl transition-colors flex items-center justify-center hover:bg-gray-100" style={{ color: theme.primary }}
             title="Back"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => onNavigate('home')}
-            className="p-2 rounded-xl transition-colors flex items-center justify-center text-indigo-600 hover:bg-gray-100"
+            className="p-2 rounded-xl transition-colors flex items-center justify-center hover:bg-gray-100" style={{ color: theme.primary }}
           >
             <HomeIcon className="h-5 w-5" />
           </button>
@@ -1064,12 +1066,12 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         currentPage="appointments"
       />
 
-      {/* ───────────── SPECIALTIES SELECTION PAGE ───────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SPECIALTIES SELECTION PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {view === 'specialties' && (
         <div className="bg-white min-h-screen pb-10">
 
           {/* Top indigo header */}
-          <div className="bg-indigo-600 px-5 pt-4 pb-8">
+          <div className="px-5 pt-4 pb-8" style={{ background: `linear-gradient(135deg, ${theme.secondary}, ${theme.primary})` }}>
             <p className="text-indigo-100 text-sm mt-1 mb-4">Find the right specialist for your concern</p>
             {/* History card button in banner */}
             <button
@@ -1081,9 +1083,9 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
               </div>
               <div className="text-left flex-1">
                 <p className="text-white font-semibold text-sm">My OPD Schedule</p>
-                <p className="text-indigo-200 text-[11px]">View your booking history</p>
+                <p className="text-[11px] opacity-70 text-white">View your booking history</p>
               </div>
-              <ChevronRight className="w-4 h-4 text-indigo-200" />
+              <ChevronRight className="w-4 h-4 text-white opacity-70" />
             </button>
           </div>
 
@@ -1131,7 +1133,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                           {imgUrl ? (
                             <img src={imgUrl} alt={doc.consultant_name} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }} />
                           ) : (
-                            <span className="text-xl">👨‍⚕️</span>
+                            <span className="text-xl">ðŸ‘¨â€âš•ï¸</span>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1152,13 +1154,13 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
             {/* No results message */}
             {searchTerm.trim() && isDoctorSearch && doctorSearchResults.length === 0 && (
               <div className="mb-4 flex flex-col items-center py-6 gap-2">
-                <span className="text-3xl">🔍</span>
+                <span className="text-3xl">ðŸ”</span>
                 <p className="text-gray-600 font-semibold text-sm">No results found</p>
                 <p className="text-gray-400 text-xs text-center">Try searching by specialty or symptom name</p>
               </div>
             )}
 
-            {/* Specialties grid — hidden when doctor search results are shown */}
+            {/* Specialties grid â€” hidden when doctor search results are shown */}
             {!isDoctorSearch && (
               <>
                 {searchTerm.trim() && (
@@ -1189,7 +1191,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                     (sp.symptoms && sp.symptoms.some(s => s.toLowerCase().includes(term)));
                 }).length === 0 && (
                     <div className="flex flex-col items-center py-6 gap-2">
-                      <span className="text-3xl">🔍</span>
+                      <span className="text-3xl">ðŸ”</span>
                       <p className="text-gray-600 font-semibold text-sm">No matching speciality</p>
                       <p className="text-gray-400 text-xs text-center">Try searching by doctor name instead</p>
                     </div>
@@ -1200,7 +1202,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         </div>
       )}
 
-      {/* ───────────── DOCTORS BY SPECIALTY PAGE ───────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ DOCTORS BY SPECIALTY PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {view === 'doctors' && (
         <div className="bg-gray-50 min-h-screen pb-16">
           {/* Cards area */}
@@ -1212,7 +1214,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
               </div>
             ) : doctorsBySpecialty.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center text-3xl">🔍</div>
+                <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center text-3xl">ðŸ”</div>
                 <p className="text-gray-700 font-semibold">No doctors found</p>
                 <p className="text-gray-500 text-sm text-center px-8">No specialists available for {selectedSpecialty?.label} right now.</p>
                 <button
@@ -1250,7 +1252,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                               className="w-20 h-20 rounded-2xl bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center"
                               style={{ display: imgUrl ? 'none' : 'flex' }}
                             >
-                              <span className="text-3xl">👨‍⚕️</span>
+                              <span className="text-3xl">ðŸ‘¨â€âš•ï¸</span>
                             </div>
                           </div>
 
@@ -1265,7 +1267,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                             )}
                             {doc.department && (
                               <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-[10px] font-semibold">
-                                {doc.department}{doc.unit ? ` · ${doc.unit}` : ''}
+                                {doc.department}{doc.unit ? ` Â· ${doc.unit}` : ''}
                               </span>
                             )}
                           </div>
@@ -1299,7 +1301,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                                   <span className="font-semibold text-gray-700">General OPD: </span>
                                   {doc.general_opd_days}
                                   {doc.general_opd_start && (
-                                    <span className="text-gray-400"> · {String(doc.general_opd_start).substring(0, 5)}</span>
+                                    <span className="text-gray-400"> Â· {String(doc.general_opd_start).substring(0, 5)}</span>
                                   )}
                                 </p>
                               </div>
@@ -1311,7 +1313,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                                   <span className="font-semibold text-gray-700">Private OPD: </span>
                                   {doc.private_opd_days}
                                   {doc.private_opd_start && (
-                                    <span className="text-gray-400"> · {String(doc.private_opd_start).substring(0, 5)}</span>
+                                    <span className="text-gray-400"> Â· {String(doc.private_opd_start).substring(0, 5)}</span>
                                   )}
                                 </p>
                               </div>
@@ -1344,7 +1346,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         </div>
       )}
 
-      {/* ───────────── DOCTOR DETAIL PAGE ───────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ DOCTOR DETAIL PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {view === 'doctorDetail' && detailDoctor && (() => {
         const doc = detailDoctor;
         const imgUrl = getDoctorImageUrl(doc);
@@ -1367,7 +1369,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                     className="w-28 h-32 rounded-xl bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center text-5xl"
                     style={{ display: imgUrl ? 'none' : 'flex' }}
                   >
-                    👨‍⚕️
+                    ðŸ‘¨â€âš•ï¸
                   </div>
                 </div>
                 {/* Info */}
@@ -1403,7 +1405,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                 {/* Consultation fee is shown inside OPD sections (General/Private), not here */}
                 {doc.hospital_name && (
                   <div className="flex-1 py-3 flex flex-col items-center gap-0.5 px-1">
-                    <span className="text-red-400 font-bold text-base">🏥</span>
+                    <span className="text-red-400 font-bold text-base">ðŸ¥</span>
                     <span className="text-gray-400 text-[10px] text-center leading-tight truncate w-full px-1">{doc.hospital_name?.split(' ').slice(0, 2).join(' ')}</span>
                   </div>
                 )}
@@ -1493,7 +1495,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                             <p className="text-xs text-gray-500 ml-4 flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {doc.general_opd_start && String(doc.general_opd_start).substring(0, 5)}
-                              {doc.general_opd_start && doc.general_opd_end && ' – '}
+                              {doc.general_opd_start && doc.general_opd_end && ' â€“ '}
                               {doc.general_opd_end && String(doc.general_opd_end).substring(0, 5)}
                             </p>
                           )}
@@ -1526,7 +1528,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                             <p className="text-xs text-gray-500 ml-4 flex items-center gap-1">
                               <Clock className="w-3 h-3" />
                               {doc.private_opd_start && String(doc.private_opd_start).substring(0, 5)}
-                              {doc.private_opd_start && doc.private_opd_end && ' – '}
+                              {doc.private_opd_start && doc.private_opd_end && ' â€“ '}
                               {doc.private_opd_end && String(doc.private_opd_end).substring(0, 5)}
                             </p>
                           )}
@@ -1552,7 +1554,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                 onClick={() => setView('doctors')}
                 className="flex-1 py-3 bg-white border-2 border-indigo-600 text-indigo-600 rounded-2xl font-semibold text-sm active:scale-[0.98] transition-all"
               >
-                ← Back
+                â† Back
               </button>
               <button
                 onClick={() => { handleBookDoctor(doc); }}
@@ -1565,7 +1567,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         );
       })()}
 
-      {/* ───────────── SLOT SELECTION PAGE ───────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ SLOT SELECTION PAGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {view === 'slots' && slotDoctor && (() => {
         const doc = slotDoctor;
         const imgUrl = getDoctorImageUrl(doc);
@@ -1638,20 +1640,20 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                     onError={e => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
                 ) : null}
                 <div className="w-14 h-14 rounded-xl bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center text-2xl"
-                  style={{ display: imgUrl ? 'none' : 'flex' }}>👨‍⚕️</div>
+                  style={{ display: imgUrl ? 'none' : 'flex' }}>ðŸ‘¨â€âš•ï¸</div>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-gray-900 text-sm">{doc.consultant_name}</p>
-                <p className="text-indigo-600 text-xs">{doc.department}{doc.unit ? ` · ${doc.unit}` : ''}</p>
+                <p className="text-indigo-600 text-xs">{doc.department}{doc.unit ? ` Â· ${doc.unit}` : ''}</p>
                 {(doc.general_fee ?? doc.consultation_fee) && (
-                  <p className="text-green-600 text-xs font-semibold mt-0.5">₹{doc.general_fee ?? doc.consultation_fee} fee</p>
+                  <p className="text-green-600 text-xs font-semibold mt-0.5">â‚¹{doc.general_fee ?? doc.consultation_fee} fee</p>
                 )}
               </div>
             </div>
 
             <p className="text-sm font-bold text-gray-500 text-center mt-3 mb-1">Select a day then tap a slot</p>
 
-            {/* ── General OPD ── */}
+            {/* â”€â”€ General OPD â”€â”€ */}
             {
               (generalDays.length > 0 || doc.general_opd_start) && (
                 <div className="mx-4 mt-4 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1660,11 +1662,11 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                       <span className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0" />
                       <p className="text-xs font-bold uppercase tracking-wider text-green-700">General OPD</p>
                       {(doc.general_fee ?? doc.consultation_fee) && (
-                        <span className="ml-auto text-xs font-semibold text-green-600">₹{doc.general_fee ?? doc.consultation_fee} fee</span>
+                        <span className="ml-auto text-xs font-semibold text-green-600">â‚¹{doc.general_fee ?? doc.consultation_fee} fee</span>
                       )}
                     </div>
                     {(doc.general_opd_start || doc.general_opd_end) && (
-                      <p className="text-[11px] text-green-500 mt-1 ml-4">⏰ {String(doc.general_opd_start || '').substring(0, 5)} – {String(doc.general_opd_end || '').substring(0, 5)}</p>
+                      <p className="text-[11px] text-green-500 mt-1 ml-4">â° {String(doc.general_opd_start || '').substring(0, 5)} â€“ {String(doc.general_opd_end || '').substring(0, 5)}</p>
                     )}
                   </div>
                   {generalDays.length > 0 && (
@@ -1715,14 +1717,14 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                     </div>
                   ) : (
                     !selectedGeneralDay
-                      ? <p className="text-xs text-center text-gray-400 pb-4">↑ Select a day to continue</p>
-                      : <p className="text-xs text-center text-gray-400 pb-4">↑ Select a date above to see slots</p>
+                      ? <p className="text-xs text-center text-gray-400 pb-4">â†‘ Select a day to continue</p>
+                      : <p className="text-xs text-center text-gray-400 pb-4">â†‘ Select a date above to see slots</p>
                   )}
                 </div>
               )
             }
 
-            {/* ── Private OPD ── */}
+            {/* â”€â”€ Private OPD â”€â”€ */}
             {
               (privateDays.length > 0 || doc.private_opd_start) && (
                 <div className="mx-4 mt-4 mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1731,11 +1733,11 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                       <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 flex-shrink-0" />
                       <p className="text-xs font-bold uppercase tracking-wider text-indigo-700">Private OPD</p>
                       {(doc.private_fee ?? doc.consultation_fee) && (
-                        <span className="ml-auto text-xs font-semibold text-indigo-600">₹{doc.private_fee ?? doc.consultation_fee} fee</span>
+                        <span className="ml-auto text-xs font-semibold text-indigo-600">â‚¹{doc.private_fee ?? doc.consultation_fee} fee</span>
                       )}
                     </div>
                     {(doc.private_opd_start || doc.private_opd_end) && (
-                      <p className="text-[11px] text-indigo-500 mt-1 ml-4">⏰ {String(doc.private_opd_start || '').substring(0, 5)} – {String(doc.private_opd_end || '').substring(0, 5)}</p>
+                      <p className="text-[11px] text-indigo-500 mt-1 ml-4">â° {String(doc.private_opd_start || '').substring(0, 5)} â€“ {String(doc.private_opd_end || '').substring(0, 5)}</p>
                     )}
                   </div>
                   {privateDays.length > 0 && (
@@ -1786,8 +1788,8 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                     </div>
                   ) : (
                     !selectedPrivateDay
-                      ? <p className="text-xs text-center text-gray-400 pb-4">↑ Select a day to continue</p>
-                      : <p className="text-xs text-center text-gray-400 pb-4">↑ Select a date above to see slots</p>
+                      ? <p className="text-xs text-center text-gray-400 pb-4">â†‘ Select a day to continue</p>
+                      : <p className="text-xs text-center text-gray-400 pb-4">â†‘ Select a date above to see slots</p>
                   )}
                 </div>
               )
@@ -1797,7 +1799,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
             {
               !hasAnyOPD && (
                 <div className="mx-4 mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center gap-3">
-                  <span className="text-4xl">📅</span>
+                  <span className="text-4xl">ðŸ“…</span>
                   <p className="font-semibold text-gray-700 text-sm">No slots configured</p>
                   <p className="text-gray-400 text-xs text-center">Slot timings not set for this doctor.</p>
                   <button onClick={() => setView('form')}
@@ -1811,7 +1813,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         );
       })()}
 
-      {/* ─────────── BOOKING FORM + BILLING ─────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ BOOKING FORM + BILLING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {(view === 'form' || view === 'billing') && (
         <div>
           {/* Form-only: Header + Error */}
@@ -1839,7 +1841,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
               )}
             </>
           )}
-          {/* ─── BILLING / SUMMARY PAGE (rendered inside form wrapper but controlled by billing view) ─── */}
+          {/* â”€â”€â”€ BILLING / SUMMARY PAGE (rendered inside form wrapper but controlled by billing view) â”€â”€â”€ */}
           {view === 'billing' && pendingAppointmentData && (
             <div className="pb-32">
               {/* Doctor card */}
@@ -1854,7 +1856,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 text-base leading-tight">{pendingAppointmentData.doctor_name}</p>
-                    <p className="text-sm text-gray-500 mt-0.5">{[pendingAppointmentData.doctor_designation, pendingAppointmentData.doctor_qualification].filter(Boolean).join(' · ') || pendingAppointmentData.department}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{[pendingAppointmentData.doctor_designation, pendingAppointmentData.doctor_qualification].filter(Boolean).join(' Â· ') || pendingAppointmentData.department}</p>
                   </div>
                 </div>
                 <div className="space-y-2 pt-3 border-t border-gray-100 text-sm">
@@ -1892,7 +1894,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                   )}
                   <div className="flex justify-between">
                     <span className="text-gray-500">Age / Gender</span>
-                    <span className="font-semibold text-gray-900">{pendingAppointmentData.patient_age} yrs · {pendingAppointmentData.patient_gender}</span>
+                    <span className="font-semibold text-gray-900">{pendingAppointmentData.patient_age} yrs Â· {pendingAppointmentData.patient_gender}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Phone</span>
@@ -1916,20 +1918,20 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Consultation Fee</span>
                     <span className="font-semibold text-gray-900">
-                      {pendingAppointmentData.consultation_fee ? `₹${pendingAppointmentData.consultation_fee}` : 'To be informed'}
+                      {pendingAppointmentData.consultation_fee ? `â‚¹${pendingAppointmentData.consultation_fee}` : 'To be informed'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Service Fee &amp; Tax</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400 line-through text-xs">₹49</span>
+                      <span className="text-gray-400 line-through text-xs">â‚¹49</span>
                       <span className="text-green-600 font-bold text-xs bg-green-50 px-2 py-0.5 rounded-full">FREE</span>
                     </div>
                   </div>
                   <div className="border-t border-dashed border-gray-200 pt-2.5 flex justify-between items-center">
                     <span className="font-bold text-gray-900">Total Payable</span>
                     <span className="font-bold text-gray-900 text-base">
-                      {pendingAppointmentData.consultation_fee ? `₹${pendingAppointmentData.consultation_fee}` : '—'}
+                      {pendingAppointmentData.consultation_fee ? `â‚¹${pendingAppointmentData.consultation_fee}` : 'â€”'}
                     </span>
                   </div>
                 </div>
@@ -1959,14 +1961,14 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
           )}
 
 
-          {/* ─── BILLING PAGE: sticky bottom bar ─── */}
+          {/* â”€â”€â”€ BILLING PAGE: sticky bottom bar â”€â”€â”€ */}
           {view === 'billing' && pendingAppointmentData && (
             <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-4 shadow-xl max-w-full md:max-w-[430px] md:mx-auto">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-xs text-gray-500">Total Payable</p>
                   <p className="text-xl font-bold text-gray-900">
-                    {pendingAppointmentData.consultation_fee ? `₹${pendingAppointmentData.consultation_fee}` : 'Pay at hospital'}
+                    {pendingAppointmentData.consultation_fee ? `â‚¹${pendingAppointmentData.consultation_fee}` : 'Pay at hospital'}
                   </p>
                 </div>
                 <button
@@ -1986,13 +1988,13 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                 {submitting ? (
                   <><div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" /> Booking...</>
                 ) : (
-                  <>✓ Confirm Clinic Visit</>
+                  <>âœ“ Confirm Clinic Visit</>
                 )}
               </button>
             </div>
           )}
 
-          {/* ─── SUCCESS POPUP MODAL ─── */}
+          {/* â”€â”€â”€ SUCCESS POPUP MODAL â”€â”€â”€ */}
           {showSuccessModal && bookedAppointmentData && (
             <div className="fixed inset-0 bg-black/50 z-[999] flex items-end justify-center p-0" onClick={(e) => { if (e.target === e.currentTarget) { } }}>
               <div className="bg-white w-full max-w-[430px] rounded-t-3xl shadow-2xl p-6 pb-8 animate-slide-up">
@@ -2030,7 +2032,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">Status</span>
-                    <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full text-xs">⏳ Pending</span>
+                    <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded-full text-xs">â³ Pending</span>
                   </div>
                 </div>
 
@@ -2057,14 +2059,14 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                     }}
                     className="flex-1 py-3.5 bg-gray-100 text-gray-700 rounded-2xl font-bold text-sm active:scale-95 transition-all"
                   >
-                    📋 View History
+                    ðŸ“‹ View History
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* ─── FORM BODY (hidden during billing view) ─── */}
+          {/* â”€â”€â”€ FORM BODY (hidden during billing view) â”€â”€â”€ */}
           {view === 'form' && (
             <div>
               {/* Booking For Toggle */}
@@ -2131,7 +2133,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
               <div className="px-4 py-2">
                 <form onSubmit={handleSubmit} className="space-y-6 max-w-md mx-auto px-2">
 
-                  {/* ── Family Member Picker (For Family Member only) ── */}
+                  {/* â”€â”€ Family Member Picker (For Family Member only) â”€â”€ */}
                   {appointmentForm.bookingFor === 'family' && (
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">
@@ -2160,7 +2162,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                           {selectedFamilyMember && (
                             <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 border border-indigo-300 rounded-xl">
                               <span className="text-sm font-semibold text-indigo-800">
-                                ✓ {selectedFamilyMember.name}
+                                âœ“ {selectedFamilyMember.name}
                                 {selectedFamilyMember.relation ? ` (${selectedFamilyMember.relation})` : ''}
                               </span>
                               <button
@@ -2168,7 +2170,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                                 onClick={handleClearFamilyMember}
                                 className="text-xs text-gray-400 hover:text-red-500 ml-2 font-medium transition-colors"
                               >
-                                ✕ Clear
+                                âœ• Clear
                               </button>
                             </div>
                           )}
@@ -2203,13 +2205,13 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                                         <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{member.gender}</span>
                                       )}
                                       {(member.age || member.dob) && (
-                                        <span className="text-xs text-gray-400">Age: {member.age || '—'}</span>
+                                        <span className="text-xs text-gray-400">Age: {member.age || 'â€”'}</span>
                                       )}
                                     </div>
                                   </div>
                                   {isSelected && (
                                     <div className="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
-                                      <span className="text-white text-xs">✓</span>
+                                      <span className="text-white text-xs">âœ“</span>
                                     </div>
                                   )}
                                 </button>
@@ -2386,13 +2388,13 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                             />
                           ) : (
                             <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                              <span className="text-2xl">👨‍⚕️</span>
+                              <span className="text-2xl">ðŸ‘¨â€âš•ï¸</span>
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-bold text-indigo-900 text-sm">{selectedDoctor.consultant_name}</p>
-                              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">✓ Selected</span>
+                              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">âœ“ Selected</span>
                             </div>
                             {selectedDoctor.designation && (
                               <p className="text-indigo-600 text-xs font-medium mt-0.5">{selectedDoctor.designation}</p>
@@ -2502,7 +2504,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">
                       Date <span className="text-red-500">*</span>
-                      {slotPreFilled && <span className="ml-2 text-green-600 text-[10px] font-semibold normal-case">✓ From slot</span>}
+                      {slotPreFilled && <span className="ml-2 text-green-600 text-[10px] font-semibold normal-case">âœ“ From slot</span>}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -2530,7 +2532,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">
                       Time <span className="text-red-500">*</span>
-                      {slotPreFilled && <span className="ml-2 text-green-600 text-[10px] font-semibold normal-case">✓ From slot</span>}
+                      {slotPreFilled && <span className="ml-2 text-green-600 text-[10px] font-semibold normal-case">âœ“ From slot</span>}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -2613,7 +2615,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                           : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-50'
                           }`}
                       >
-                        <span className="text-base">{appointmentForm.isFirstVisit === 'yes' ? '✅' : '⬜'}</span>
+                        <span className="text-base">{appointmentForm.isFirstVisit === 'yes' ? 'âœ…' : 'â¬œ'}</span>
                         Yes
                       </button>
                       <button
@@ -2624,7 +2626,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                           : 'border-gray-200 bg-white text-gray-500 hover:border-indigo-300 hover:bg-indigo-50'
                           }`}
                       >
-                        <span className="text-base">{appointmentForm.isFirstVisit === 'no' ? '✅' : '⬜'}</span>
+                        <span className="text-base">{appointmentForm.isFirstVisit === 'no' ? 'âœ…' : 'â¬œ'}</span>
                         No
                       </button>
                     </div>
@@ -2712,7 +2714,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         </div>
       )}
 
-      {/* ─────────── APPOINTMENT HISTORY ─────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ APPOINTMENT HISTORY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {
         view === 'history' && (
           <div className="bg-gray-50 min-h-screen pb-10">
@@ -2810,7 +2812,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                           {appt.reason && (
                             <p className="text-xs text-gray-500 mt-1 line-clamp-1">Reason: {appt.reason}</p>
                           )}
-                          {/* Cancel your Appointment button — only for pending or confirmed */}
+                          {/* Cancel your Appointment button â€” only for pending or confirmed */}
                           {(appt.status?.toLowerCase() === 'pending' || appt.status?.toLowerCase() === 'confirmed' || !appt.status) && (
                             <div className="mt-3 pt-3 border-t border-gray-50">
                               <button
@@ -2834,7 +2836,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
         )
       }
 
-      {/* ─────────── CANCEL / DELETE CONFIRMATION MODAL ─────────── */}
+      {/* â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ CANCEL / DELETE CONFIRMATION MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {
         confirmModal && (
           <div
@@ -2875,7 +2877,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                 <div className="bg-gray-50 rounded-2xl p-3 mt-4 mb-5 space-y-1.5">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400 font-medium">Doctor</span>
-                    <span className="text-gray-800 font-semibold">{confirmModal.appt.doctor_name || '—'}</span>
+                    <span className="text-gray-800 font-semibold">{confirmModal.appt.doctor_name || 'â€”'}</span>
                   </div>
                   {confirmModal.appt.appointment_date && (
                     <div className="flex justify-between text-xs">
@@ -2893,7 +2895,7 @@ const Appointments = ({ onNavigate, appointmentForm, setAppointmentForm }) => {
                   )}
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-400 font-medium">Patient</span>
-                    <span className="text-gray-800 font-semibold">{confirmModal.appt.patient_name || '—'}</span>
+                    <span className="text-gray-800 font-semibold">{confirmModal.appt.patient_name || 'â€”'}</span>
                   </div>
                 </div>
 

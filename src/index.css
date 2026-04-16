@@ -4,15 +4,30 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Brand CSS Variables ── */
+/* ── Brand CSS Variables (defaults — overridden per-trust by App.jsx useTheme) ── */
 :root {
+  /* Primary colour (primary_color in app_templates) */
   --brand-red:        #C0241A;
   --brand-red-dark:   #9B1A13;
   --brand-red-mid:    #E8352A;
   --brand-red-light:  #FDECEA;
+
+  /* Secondary colour (secondary_color in app_templates) */
   --brand-navy:       #2B2F7E;
   --brand-navy-dark:  #1E2260;
   --brand-navy-light: #EAEBF8;
+
+  /* Accent colours (accent_color / accent_bg) */
+  --app-accent:       #FDECEA;
+  --app-accent-bg:    #EAEBF8;
+
+  /* Navbar & page background */
+  --app-navbar-bg:    rgba(234,235,248,0.88);
+  --app-page-bg:      linear-gradient(160deg,#fff5f5 0%,#ffffff 50%,#f0f1fb 100%);
+
+  /* Derived helpers — computed by JS and set here for CSS use */
+  --brand-primary:    var(--brand-red);
+  --brand-secondary:  var(--brand-navy);
 
   /* Safe Area Variables - Updated by useAndroidSafeArea hook */
   --safe-area-top: 0px;
@@ -118,11 +133,38 @@ body {
   will-change: transform;
 }
 
-/* ── Shared page wrapper ── */
+/* ── Shared page wrapper — uses CSS var so all pages get the trust theme ── */
 .brand-page {
-  background: linear-gradient(135deg, #fff5f5 0%, #ffffff 45%, #f0f1fb 100%);
+  background: var(--app-page-bg, linear-gradient(135deg, #fff5f5 0%, #ffffff 45%, #f0f1fb 100%));
   min-height: 100vh;
   font-family: 'Inter', sans-serif;
+}
+
+/* ── Themed page background ── */
+.theme-page-bg {
+  background: var(--app-page-bg) !important;
+  min-height: 100%;
+}
+
+/* ── Themed navbar ── */
+.theme-navbar {
+  background: var(--app-navbar-bg) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in srgb, var(--brand-red) 14%, transparent);
+  box-shadow: 0 2px 16px color-mix(in srgb, var(--brand-navy) 13%, transparent);
+}
+
+/* Thin top accent strip used on navbars */
+.theme-navbar-accent {
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand-navy), var(--brand-red), var(--brand-navy));
+}
+
+/* ── Themed header / hero section ── */
+.theme-header {
+  background: linear-gradient(145deg, var(--brand-navy) 0%, var(--brand-red) 100%);
+  color: #fff;
 }
 
 /* ── Brand gradient button ── */
@@ -134,18 +176,43 @@ body {
   border: none;
   cursor: pointer;
   transition: opacity 0.2s, box-shadow 0.2s, transform 0.1s;
-  box-shadow: 0 8px 24px rgba(192,36,26,0.30);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--brand-red) 30%, transparent);
 }
-.btn-brand:hover { opacity: 0.92; }
+.btn-brand:hover  { opacity: 0.92; }
 .btn-brand:active { transform: scale(0.98); }
 .btn-brand:disabled { opacity: 0.50; cursor: not-allowed; box-shadow: none; }
+
+/* Inline/replaced variant (same as btn-brand, used when replacing indigo classes) */
+.btn-brand-inline {
+  background: linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-dark) 50%, var(--brand-navy) 100%);
+  color: #fff !important;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-brand-inline:hover { opacity: 0.92; }
+
+/* Small outline variant */
+.btn-brand-outline {
+  border: 1.5px solid var(--brand-red);
+  color: var(--brand-red);
+  background: transparent;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-brand-outline:hover {
+  background: var(--app-accent);
+}
 
 /* ── Brand card ── */
 .brand-card {
   background: #fff;
   border-radius: 20px;
-  border: 1px solid rgba(192,36,26,0.09);
-  box-shadow: 0 8px 32px rgba(192,36,26,0.07), 0 2px 8px rgba(43,47,126,0.06);
+  border: 1px solid color-mix(in srgb, var(--brand-red) 9%, transparent);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--brand-red) 7%, transparent),
+              0 2px 8px  color-mix(in srgb, var(--brand-navy) 6%, transparent);
 }
 
 /* ── Top accent bar ── */
@@ -163,6 +230,51 @@ body {
   text-transform: uppercase;
   color: var(--brand-red);
 }
+
+/* ── Primary text colour ── */
+.theme-text-primary   { color: var(--brand-red); }
+.theme-text-secondary { color: var(--brand-navy); }
+.theme-text-accent    { color: var(--app-accent); }
+
+/* ── Accent backgrounds ── */
+.theme-bg-accent    { background-color: var(--app-accent); }
+.theme-bg-accent-bg { background-color: var(--app-accent-bg); }
+
+/* ── Active tab / pill ── */
+.theme-tab-active {
+  background: linear-gradient(135deg, var(--brand-red), var(--brand-navy));
+  color: #fff !important;
+}
+.theme-tab-inactive {
+  background: var(--app-accent-bg);
+  color: var(--brand-navy);
+}
+
+/* ── Input focus ring ── */
+.theme-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-red) 20%, transparent);
+  border-color: var(--brand-red);
+}
+
+/* ── Badge / chip ── */
+.theme-badge {
+  background: var(--app-accent);
+  color: var(--brand-red);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* ── Bottom tab bar (shared across pages) ── */
+.theme-bottom-bar {
+  background: var(--app-navbar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid color-mix(in srgb, var(--brand-red) 12%, transparent);
+}
+
 
 /* ── Legal content ── */
 @layer components {

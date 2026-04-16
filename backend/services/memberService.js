@@ -1,9 +1,42 @@
 import { supabase } from '../config/supabase.js';
 
+const normalizeMembershipNumber = (value) => String(value || '').trim();
+
+const mergeUniqueMembers = (rows = []) => {
+  const seen = new Set();
+  const output = [];
+
+  for (const row of rows || []) {
+    const key =
+      row?.members_id
+        ? `mid:${row.members_id}`
+        : normalizeMembershipNumber(row?.['Membership number'])
+          ? `mno:${normalizeMembershipNumber(row?.['Membership number']).toLowerCase()}`
+          : row?.['S. No.']
+            ? `sno:${row['S. No.']}`
+            : null;
+
+    if (!key || !seen.has(key)) {
+      if (key) seen.add(key);
+      output.push(row);
+    }
+  }
+
+  return output;
+};
+
 // Fetch trust membership metadata from reg_members table (new schema)
-// Returns { membersIds: [] } — the UUIDs linking Trust → Members
+// Supports both members_id and Membership number based linking.
 const getTrustMembershipMeta = async (trustId) => {
-  if (!trustId) return { membersIds: [], roleByMembersId: new Map(), membershipNumberByMembersId: new Map() };
+  if (!trustId) {
+    return {
+      membersIds: [],
+      membershipNumbers: [],
+      roleByMembersId: new Map(),
+      roleByMembershipNumber: new Map(),
+      membershipNumberByMembersId: new Map(),
+    };
+  }
 
   const batchSize = 1000;
   let from = 0;
@@ -42,54 +75,97 @@ const getTrustMembershipMeta = async (trustId) => {
   }
 
   const membersIds = [];
+  const membershipNumbers = [];
   const roleByMembersId = new Map();
+  const roleByMembershipNumber = new Map();
   const membershipNumberByMembersId = new Map();
   for (const row of allRows || []) {
+    const membershipNumber = normalizeMembershipNumber(row?.['Membership number']);
+    if (membershipNumber) {
+      membershipNumbers.push(membershipNumber);
+      if (!roleByMembershipNumber.has(membershipNumber.toLowerCase())) {
+        roleByMembershipNumber.set(membershipNumber.toLowerCase(), row?.role || null);
+      }
+    }
+
     if (row?.members_id) {
       membersIds.push(row.members_id);
       roleByMembersId.set(row.members_id, row.role || null);
-      if (row['Membership number'] && !membershipNumberByMembersId.has(row.members_id)) {
-        membershipNumberByMembersId.set(row.members_id, row['Membership number']);
+      if (membershipNumber && !membershipNumberByMembersId.has(row.members_id)) {
+        membershipNumberByMembersId.set(row.members_id, membershipNumber);
       }
     }
   }
 
   return {
     membersIds: [...new Set(membersIds)],
+    membershipNumbers: [...new Set(membershipNumbers)],
     roleByMembersId,
+    roleByMembershipNumber,
     membershipNumberByMembersId,
   };
 };
 
 const applyMemberScopeFilter = (query, trustMeta) => {
   const membersIds = trustMeta?.membersIds || [];
-  if (membersIds.length === 0) return query;
-  return query.in('members_id', membersIds);
+  if (membersIds.length > 0) return query.in('members_id', membersIds);
+
+  const membershipNumbers = trustMeta?.membershipNumbers || [];
+  if (membershipNumbers.length > 0) return query.in('Membership number', membershipNumbers);
+
+  return query;
 };
 
 const enrichWithMembershipData = (members, trustMeta) => {
   if (!trustMeta) return members || [];
   const membershipMap = trustMeta?.membershipNumberByMembersId;
   const roleMap = trustMeta?.roleByMembersId;
+  const roleByMembershipNumber = trustMeta?.roleByMembershipNumber;
 
   return (members || []).map((member) => {
     const mid = member?.members_id || null;
+    const existingMembershipNumber = normalizeMembershipNumber(member?.['Membership number']);
     const membershipNumber = mid ? membershipMap?.get(mid) : null;
+    const roleFromMembershipNumber = existingMembershipNumber
+      ? roleByMembershipNumber?.get(existingMembershipNumber.toLowerCase())
+      : null;
     const mappedRole = mid ? roleMap?.get(mid) : null;
+    const finalRole =
+      mappedRole ||
+      roleFromMembershipNumber ||
+      member?.role ||
+      member?.type ||
+      'Member';
 
     return {
       ...member,
-      'Membership number': membershipNumber || member?.['Membership number'] || null,
-      role: mappedRole || member?.role || member?.type || null,
+      'Membership number': membershipNumber || existingMembershipNumber || null,
+      role: finalRole,
+      type: member?.type || finalRole || 'Member',
     };
   });
 };
 
-const getTrustMemberIdList = (trustMeta) => {
+const hasTrustMembershipScope = (trustMeta) => {
   const membersIds = trustMeta?.membersIds || [];
+  const membershipNumbers = trustMeta?.membershipNumbers || [];
+  return membersIds.length > 0 || membershipNumbers.length > 0;
+};
+
+const getTrustMemberIdList = (trustMeta, preferMembership = false) => {
+  const membersIds = trustMeta?.membersIds || [];
+  const membershipNumbers = trustMeta?.membershipNumbers || [];
+
+  if (!preferMembership && membersIds.length > 0) {
+    return { field: 'members_id', values: membersIds };
+  }
+  if (membershipNumbers.length > 0) {
+    return { field: 'Membership number', values: membershipNumbers };
+  }
   if (membersIds.length > 0) {
     return { field: 'members_id', values: membersIds };
   }
+
   return { field: null, values: [] };
 };
 
@@ -99,7 +175,7 @@ const resolveMemberIdFieldOptions = (field) => {
 };
 
 const fetchMembersByIdChunks = async (field, values, tableName = 'Members') => {
-  const chunkSize = 500;
+  const chunkSize = 100;
   const fieldOptions = resolveMemberIdFieldOptions(field);
   let lastError = null;
 
@@ -108,13 +184,32 @@ const fetchMembersByIdChunks = async (field, values, tableName = 'Members') => {
       let allData = [];
       for (let i = 0; i < values.length; i += chunkSize) {
         const chunk = values.slice(i, i + chunkSize);
-        const { data, error } = await supabase
-          .from(tableName)
-          .select('*')
-          .in(fieldOption, chunk)
-          .order('Name', { ascending: true });
-        if (error) throw error;
-        allData = [...allData, ...(data || [])];
+        try {
+          const { data, error } = await supabase
+            .from(tableName)
+            .select('*')
+            .in(fieldOption, chunk)
+            .order('Name', { ascending: true });
+          if (error) throw error;
+          allData = [...allData, ...(data || [])];
+        } catch (chunkError) {
+          // Retry large IN queries with smaller slices to avoid URL/query-size failures.
+          const retrySize = 25;
+          for (let j = 0; j < chunk.length; j += retrySize) {
+            const miniChunk = chunk.slice(j, j + retrySize);
+            const { data: miniData, error: miniError } = await supabase
+              .from(tableName)
+              .select('*')
+              .in(fieldOption, miniChunk)
+              .order('Name', { ascending: true });
+            if (miniError) throw miniError;
+            allData = [...allData, ...(miniData || [])];
+          }
+          console.warn(`Retried oversized chunk for ${tableName}.${fieldOption} with smaller batches`);
+          if (String(chunkError?.message || '').toLowerCase().includes('fetch failed')) {
+            // Keep processing; miniChunk retries already succeeded.
+          }
+        }
       }
       return allData;
     } catch (error) {
@@ -170,9 +265,18 @@ export const getTrustIdByName = async (trustName) => {
  */
 export const getMembersByType = async (type, trustId = null) => {
   try {
-    const trustMeta = await getTrustMembershipMeta(trustId);
-    if (trustId && trustMeta.membersIds.length === 0) {
-      return [];
+    if (trustId) {
+      const trustedMembers = await getAllMembers(trustId);
+      const filtered = (trustedMembers || []).filter((member) => member?.type === type);
+
+      if (['trustee', 'patron'].includes(String(type || '').toLowerCase().trim())) {
+        const normalizedType = String(type || '').toLowerCase().trim();
+        return filtered.filter((member) => {
+          const roleLower = String(member?.role || member?.type || '').toLowerCase().trim();
+          return roleLower.includes(normalizedType);
+        });
+      }
+      return filtered;
     }
 
     // Fetch all records of this type using batch fetching
@@ -209,17 +313,7 @@ export const getMembersByType = async (type, trustId = null) => {
       }
     }
     
-    const enriched = trustId ? enrichWithMembershipData(allData, trustMeta) : allData;
-
-    if (trustId && ['trustee', 'patron'].includes(type.toLowerCase().trim())) {
-      const normalizedType = type.toLowerCase().trim();
-      return enriched.filter((member) => {
-        const roleLower = String(member?.role || member?.type || '').toLowerCase().trim();
-        return roleLower === normalizedType;
-      });
-    }
-
-    return enriched;
+    return allData;
   } catch (error) {
     console.error(`Error fetching ${type} members:`, error);
     throw error;
@@ -231,10 +325,20 @@ export const getMembersByType = async (type, trustId = null) => {
  */
 export const searchMembers = async (searchQuery, type = null, trustId = null) => {
   try {
-    const trustMeta = await getTrustMembershipMeta(trustId);
-    if (trustId && trustMeta.membersIds.length === 0) {
-      return [];
+    if (trustId) {
+      const trustedMembers = await getAllMembers(trustId);
+      const q = String(searchQuery || '').toLowerCase().trim();
+      return (trustedMembers || []).filter((member) => {
+        const name = String(member?.Name || '').toLowerCase();
+        const company = String(member?.['Company Name'] || '').toLowerCase();
+        const typeValue = String(member?.type || '').toLowerCase();
+        const typeMatch = type ? typeValue === String(type).toLowerCase().trim() : true;
+        const queryMatch = q ? (name.includes(q) || company.includes(q)) : true;
+        return typeMatch && queryMatch;
+      });
     }
+
+    const trustMeta = await getTrustMembershipMeta(trustId);
 
     let query = supabase
       .from('Members')
@@ -290,10 +394,15 @@ export const getMemberById = async (id) => {
  */
 export const getMemberTypes = async (trustId = null) => {
   try {
-    const trustMeta = await getTrustMembershipMeta(trustId);
-    if (trustId && trustMeta.membersIds.length === 0) {
-      return [];
+    if (trustId) {
+      const trustedMembers = await getAllMembers(trustId);
+      const uniqueTypes = [...new Set((trustedMembers || [])
+        .map((item) => item?.type)
+        .filter(Boolean))];
+      return uniqueTypes;
     }
+
+    const trustMeta = await getTrustMembershipMeta(trustId);
 
     // Fetch all records to get all types (using batch fetching)
     let allData = [];
@@ -345,11 +454,20 @@ export const getAllMembers = async (trustId = null) => {
     console.log('Table name: "Members"');
 
     if (trustId) {
-      const { field, values } = getTrustMemberIdList(trustMeta);
-      if (!field || values.length === 0) {
+      if (!hasTrustMembershipScope(trustMeta)) {
         return [];
       }
-      const membersData = await fetchMembersByIdChunks(field, values, 'Members');
+      const idScope = getTrustMemberIdList(trustMeta, false);
+      const membershipScope = getTrustMemberIdList(trustMeta, true);
+
+      const byId = idScope.field && idScope.values.length
+        ? await fetchMembersByIdChunks(idScope.field, idScope.values, 'Members')
+        : [];
+      const byMembership = membershipScope.field && membershipScope.values.length
+        ? await fetchMembersByIdChunks(membershipScope.field, membershipScope.values, 'Members')
+        : [];
+
+      const membersData = mergeUniqueMembers([...(byId || []), ...(byMembership || [])]);
       const enriched = enrichWithMembershipData(membersData, trustMeta);
       const sorted = [...enriched].sort((a, b) => String(a?.Name || '').localeCompare(String(b?.Name || '')));
       return sorted;
@@ -591,35 +709,16 @@ export const getMembersPage = async (page = 1, limit = 100, trustId = null) => {
     const to = from + l - 1;
 
     if (trustId) {
-      const { field, values } = getTrustMemberIdList(trustMeta);
-      if (!field || values.length === 0) {
+      if (!hasTrustMembershipScope(trustMeta)) {
         return { data: [], count: 0 };
       }
-      const pageIds = values.slice(from, to + 1);
-      if (pageIds.length === 0) return { data: [], count: values.length };
-
-      const fieldOptions = resolveMemberIdFieldOptions(field);
-      let data = null;
-      let error = null;
-
-      for (const fieldOption of fieldOptions) {
-        const result = await supabase
-          .from('Members')
-          .select('*')
-          .in(fieldOption, pageIds)
-          .order('Name', { ascending: true });
-        data = result.data;
-        error = result.error;
-        if (!error) break;
-      }
-
-      if (error) {
-        console.error('Error fetching members page:', error);
-        throw error;
-      }
-
-      const enriched = enrichWithMembershipData(data || [], trustMeta);
-      return { data: enriched, count: values.length };
+      const trustedMembers = await getAllMembers(trustId);
+      const sortedTrustedMembers = [...(trustedMembers || [])]
+        .sort((a, b) => String(a?.Name || '').localeCompare(String(b?.Name || '')));
+      return {
+        data: sortedTrustedMembers.slice(from, to + 1),
+        count: sortedTrustedMembers.length
+      };
     }
 
     // Get total count (head request)
@@ -655,7 +754,7 @@ export const getMembersPage = async (page = 1, limit = 100, trustId = null) => {
 export const getMembersPreview = async (limit = 100, trustId = null) => {
   try {
     const trustMeta = await getTrustMembershipMeta(trustId);
-    if (trustId && trustMeta.membersIds.length === 0) {
+    if (trustId && !hasTrustMembershipScope(trustMeta)) {
       return [];
     }
 
@@ -665,20 +764,8 @@ export const getMembersPreview = async (limit = 100, trustId = null) => {
     let membersError = null;
 
     if (trustId) {
-      const { field, values } = getTrustMemberIdList(trustMeta);
-      const pageIds = values.slice(0, l);
-      if (pageIds.length === 0) return [];
-      const fieldOptions = resolveMemberIdFieldOptions(field);
-      for (const fieldOption of fieldOptions) {
-        const result = await supabase
-          .from('Members')
-          .select('*')
-          .in(fieldOption, pageIds)
-          .order('Name', { ascending: true });
-        membersData = result.data;
-        membersError = result.error;
-        if (!membersError) break;
-      }
+      const trustedMembers = await getAllMembers(trustId);
+      membersData = (trustedMembers || []).slice(0, l);
     } else {
       const result = await supabase
         .from('Members')

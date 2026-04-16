@@ -4,6 +4,7 @@ import { supabase } from './supabaseClient';
 export const getTrusteesAndPatrons = async (trustId = null, trustName = null) => {
   try {
     let resolvedTrustId = trustId;
+    const normalizeMembershipNumber = (value) => String(value || '').trim();
 
     if (!resolvedTrustId && trustName) {
       const { data: trustData } = await supabase
@@ -14,9 +15,11 @@ export const getTrusteesAndPatrons = async (trustId = null, trustName = null) =>
       resolvedTrustId = trustData?.[0]?.id || null;
     }
 
-    // Use members_id (UUID FK) from reg_members to look up Members
+    // Use both members_id (UUID FK) and Membership number from reg_members to look up Members
     let membersIds = [];
+    let membershipNumbers = [];
     const roleByMembersId = new Map();
+    const roleByMembershipNumber = new Map();
     const membershipNumberByMembersId = new Map();
 
     if (resolvedTrustId) {
@@ -46,25 +49,35 @@ export const getTrusteesAndPatrons = async (trustId = null, trustName = null) =>
       }
 
       const ids = (rmRows || []).map(r => r.members_id).filter(Boolean);
+      const membershipNos = (rmRows || [])
+        .map((row) => normalizeMembershipNumber(row?.['Membership number']))
+        .filter(Boolean);
       (rmRows || []).forEach((row) => {
-        if (!row.members_id) return;
-        const key = String(row.members_id);
-        if (!roleByMembersId.has(key)) {
-          roleByMembersId.set(key, row.role || null);
+        const membershipNumber = normalizeMembershipNumber(row?.['Membership number']);
+
+        if (row.members_id) {
+          const key = String(row.members_id);
+          if (!roleByMembersId.has(key)) {
+            roleByMembersId.set(key, row.role || null);
+          }
+          if (membershipNumber && !membershipNumberByMembersId.has(key)) {
+            membershipNumberByMembersId.set(key, membershipNumber);
+          }
         }
-        const membershipNumber = row['Membership number'] || null;
-        if (membershipNumber && !membershipNumberByMembersId.has(key)) {
-          membershipNumberByMembersId.set(key, membershipNumber);
+
+        if (membershipNumber && !roleByMembershipNumber.has(membershipNumber.toLowerCase())) {
+          roleByMembershipNumber.set(membershipNumber.toLowerCase(), row.role || null);
         }
       });
       if (ids.length > 0) membersIds = ids;
+      if (membershipNos.length > 0) membershipNumbers = [...new Set(membershipNos)];
     }
 
-    if (resolvedTrustId && membersIds.length === 0) {
+    if (resolvedTrustId && membersIds.length === 0 && membershipNumbers.length === 0) {
       return { data: [] };
     }
 
-    const chunkSize = 500;
+    const chunkSize = 100;
     let allData = [];
 
     if (membersIds.length === 0) {
@@ -77,29 +90,114 @@ export const getTrusteesAndPatrons = async (trustId = null, trustName = null) =>
       return { data: data || [] };
     }
 
-    // Fetch members by members_id chunks
+    // Fetch members by members_id chunks (with retry in smaller slices)
     for (let i = 0; i < membersIds.length; i += chunkSize) {
       const chunk = membersIds.slice(i, i + chunkSize);
-      const { data, error } = await supabase
-        .from('Members')
-        .select('*')
-        .in('members_id', chunk)
-        .order('Name', { ascending: true });
-      if (error) throw error;
-      allData = [...allData, ...(data || [])];
+      try {
+        const { data, error } = await supabase
+          .from('Members')
+          .select('*')
+          .in('members_id', chunk)
+          .order('Name', { ascending: true });
+        if (error) throw error;
+        allData = [...allData, ...(data || [])];
+      } catch (chunkError) {
+        const retrySize = 25;
+        for (let j = 0; j < chunk.length; j += retrySize) {
+          const miniChunk = chunk.slice(j, j + retrySize);
+          const { data: miniData, error: miniError } = await supabase
+            .from('Members')
+            .select('*')
+            .in('members_id', miniChunk)
+            .order('Name', { ascending: true });
+          if (miniError) throw miniError;
+          allData = [...allData, ...(miniData || [])];
+        }
+        console.warn('Retried oversized Members query with smaller chunk size', chunkError?.message || chunkError);
+      }
+    }
+
+    // Fetch members by Membership number chunks (for trusts linked via membership number only).
+    // Some environments expose this field with a different column key, so we fall back to in-memory filtering.
+    if (membershipNumbers.length > 0) {
+      let fetchedByMembership = false;
+      try {
+        for (let i = 0; i < membershipNumbers.length; i += chunkSize) {
+          const chunk = membershipNumbers.slice(i, i + chunkSize);
+          const { data, error } = await supabase
+            .from('Members')
+            .select('*')
+            .in('Membership number', chunk)
+            .order('Name', { ascending: true });
+          if (error) throw error;
+          allData = [...allData, ...(data || [])];
+        }
+        fetchedByMembership = true;
+      } catch (membershipQueryError) {
+        console.warn('Membership-number DB filter failed, using in-memory fallback:', membershipQueryError?.message || membershipQueryError);
+      }
+
+      if (!fetchedByMembership) {
+        const { data: fallbackMembers, error: fallbackError } = await supabase
+          .from('Members')
+          .select('*')
+          .order('Name', { ascending: true });
+        if (fallbackError) throw fallbackError;
+
+        const membershipSet = new Set(
+          (membershipNumbers || [])
+            .map((value) => normalizeMembershipNumber(value).toLowerCase())
+            .filter(Boolean)
+        );
+
+        const filteredFallbackMembers = (fallbackMembers || []).filter((member) => {
+          const candidates = [
+            member?.['Membership number'],
+            member?.membership_number,
+            member?.membershipNumber,
+            member?.membership_no,
+            member?.MembershipNo,
+          ];
+          return candidates.some((candidate) => {
+            const normalized = normalizeMembershipNumber(candidate).toLowerCase();
+            return normalized && membershipSet.has(normalized);
+          });
+        });
+
+        allData = [...allData, ...filteredFallbackMembers];
+      }
+    }
+
+    // De-duplicate rows that may come from both members_id and membership-number fetches.
+    const seen = new Set();
+    const uniqueMembers = [];
+    for (const member of allData) {
+      const mid = member?.members_id ? `mid:${String(member.members_id)}` : '';
+      const mno = normalizeMembershipNumber(member?.['Membership number']);
+      const mkey = mno ? `mno:${mno.toLowerCase()}` : '';
+      const sno = member?.['S.No.'] ?? member?.['S. No.'] ?? null;
+      const skey = sno ? `sno:${sno}` : '';
+      const key = mid || mkey || skey || JSON.stringify(member);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      uniqueMembers.push(member);
     }
 
     // Enrich each member with their role from reg_members
-    const enriched = allData.map((member) => {
+    const enriched = uniqueMembers.map((member) => {
       const mid = member?.members_id ? String(member.members_id) : null;
+      const memberMembershipNumber = normalizeMembershipNumber(member?.['Membership number']);
       const role = mid ? roleByMembersId.get(mid) : null;
+      const roleFromMembership = memberMembershipNumber
+        ? roleByMembershipNumber.get(memberMembershipNumber.toLowerCase())
+        : null;
       const membershipNumber = mid ? membershipNumberByMembersId.get(mid) : null;
 
       return {
         ...member,
-        type: member?.type || role || member?.role || null,
-        role: member?.role || role || null,
-        'Membership number': membershipNumber || member?.['Membership number'] || null,
+        type: member?.type || role || roleFromMembership || member?.role || null,
+        role: member?.role || role || roleFromMembership || null,
+        'Membership number': membershipNumber || memberMembershipNumber || null,
         // Normalize the S.No. field name (table uses "S.No." without space)
         'S. No.': member?.['S.No.'] ?? member?.['S. No.'] ?? null,
       };
@@ -203,7 +301,7 @@ export const getOpdDoctors = async (trustId = null, trustName = null) => {
       };
     };
 
-    const normalized = (data || []).map((row) => {
+    let normalized = (data || []).map((row) => {
       const member = row.Members || {};
       const empDetailsRaw = row.employee_details;
       const detailsArr = Array.isArray(empDetailsRaw)
@@ -282,6 +380,82 @@ export const getOpdDoctors = async (trustId = null, trustName = null) => {
     })
     .filter(Boolean)
     .sort((a, b) => String(a?.Name || '').localeCompare(String(b?.Name || '')));
+
+    // If no doctors found with employee_details, fall back to reg_members with doctor role
+    if (normalized.length === 0) {
+      console.log('No doctors with employee_details, falling back to reg_members...');
+      let fallbackQuery = supabase
+        .from('reg_members')
+        .select(`
+          id,
+          trust_id,
+          role,
+          "Membership number",
+          members_id,
+          Members:members_id (
+            "S.No.",
+            "Name",
+            "Mobile",
+            "Email",
+            "Address Home",
+            "Company Name",
+            "Address Office",
+            "Resident Landline",
+            "Office Landline",
+            members_id
+          )
+        `)
+        .ilike('role', '%doctor%');
+
+      if (resolvedTrustId) {
+        fallbackQuery = fallbackQuery.eq('trust_id', resolvedTrustId);
+      }
+
+      const { data: fallbackData } = await fallbackQuery;
+      
+      if (fallbackData && fallbackData.length > 0) {
+        normalized = fallbackData.map(row => {
+          const member = row.Members || {};
+          return {
+            id: row.id,
+            original_id: member?.['S.No.'] ?? member?.['S. No.'] ?? null,
+            members_id: row.members_id || member?.members_id || null,
+            trust_id: row.trust_id || null,
+            Name: member?.Name || null,
+            Mobile: member?.Mobile || null,
+            Email: member?.Email || null,
+            'Address Home': member?.['Address Home'] || null,
+            'Company Name': member?.['Company Name'] || null,
+            'Address Office': member?.['Address Office'] || null,
+            'Resident Landline': member?.['Resident Landline'] || null,
+            'Office Landline': member?.['Office Landline'] || null,
+            type: row.role || 'Doctor',
+            role: row.role || 'Doctor',
+            'Membership number': row['Membership number'] || null,
+            designation: null,
+            qualification: null,
+            experience_years: null,
+            doctor_image_url: null,
+            department: member?.['Company Name'] || null,
+            unit: null,
+            unit_notes: null,
+            consultant_name: member?.Name || null,
+            general_opd_schedule: [],
+            private_opd_schedule: [],
+            general_opd_days: null,
+            private_opd_days: null,
+            general_opd_start: null,
+            general_opd_end: null,
+            private_opd_start: null,
+            private_opd_end: null,
+            slot_duration_minutes: null,
+            general_fee: null,
+            private_fee: null,
+            consultation_fee: null
+          };
+        }).sort((a, b) => String(a?.Name || '').localeCompare(String(b?.Name || '')));
+      }
+    }
 
     return { success: true, data: normalized };
   } catch (err) {

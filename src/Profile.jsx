@@ -7,11 +7,12 @@ import {
 } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import { getAllElectedMembers, getProfile, saveProfile } from './services/api';
+import { useAppTheme } from './context/ThemeContext';
 
 // Classy input field — label on top, styled bordered input
 const RowField = ({ label, type = 'text', value, onChange, placeholder, disabled = false, icon: Icon }) => (
   <div className={`flex flex-col gap-1 ${disabled ? 'opacity-70' : ''}`}>
-    <label className="text-[11px] font-bold uppercase tracking-widest ml-0.5 flex items-center gap-1" style={{ color: '#2B2F7E' }}>
+    <label className="text-[11px] font-bold uppercase tracking-widest ml-0.5 flex items-center gap-1" style={{ color: 'var(--brand-navy)' }}>
       {Icon && <Icon className="h-3 w-3" />}{label}
       {disabled && <span className="text-[9px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full ml-1 font-semibold">AUTO</span>}
     </label>
@@ -20,7 +21,7 @@ const RowField = ({ label, type = 'text', value, onChange, placeholder, disabled
         : 'bg-white border-gray-100'
       }`}
       style={{ boxShadow: 'none' }}
-      onFocusCapture={e => { if (!disabled) e.currentTarget.style.borderColor = '#C0241A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(192,36,26,0.08)'; }}
+      onFocusCapture={e => { if (!disabled) e.currentTarget.style.borderColor = 'var(--brand-red)'; e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--brand-red) 8%, transparent)'; }}
       onBlurCapture={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.boxShadow = ''; }}
     >
       <input
@@ -41,7 +42,7 @@ const RowDate = ({ label, value, onChange, icon: Icon }) => (
     <label className="text-[11px] font-bold uppercase tracking-widest ml-0.5 flex items-center gap-1" style={{ color: '#2B2F7E' }}>
       {Icon && <Icon className="h-3 w-3" />}{label}
     </label>
-    <div className="relative rounded-2xl border-2 border-gray-100 bg-white transition-all" style={{}} onFocusCapture={e => { e.currentTarget.style.borderColor = '#C0241A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(192,36,26,0.08)'; }} onBlurCapture={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.boxShadow = ''; }}>
+    <div className="relative rounded-2xl border-2 border-gray-100 bg-white transition-all" style={{}} onFocusCapture={e => { e.currentTarget.style.borderColor = 'var(--brand-red)'; e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--brand-red) 8%, transparent)'; }} onBlurCapture={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.boxShadow = ''; }}>
       <input
         type="date"
         value={value || ''}
@@ -58,7 +59,7 @@ const RowSelect = ({ label, value, onChange, options, placeholder, icon: Icon })
     <label className="text-[11px] font-bold uppercase tracking-widest ml-0.5 flex items-center gap-1" style={{ color: '#2B2F7E' }}>
       {Icon && <Icon className="h-3 w-3" />}{label}
     </label>
-    <div className="relative rounded-2xl border-2 border-gray-100 bg-white transition-all" onFocusCapture={e => { e.currentTarget.style.borderColor = '#C0241A'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(192,36,26,0.08)'; }} onBlurCapture={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.boxShadow = ''; }}>
+    <div className="relative rounded-2xl border-2 border-gray-100 bg-white transition-all" onFocusCapture={e => { e.currentTarget.style.borderColor = 'var(--brand-red)'; e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--brand-red) 8%, transparent)'; }} onBlurCapture={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.boxShadow = ''; }}>
       <select
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
@@ -83,6 +84,7 @@ const SectionHeader = ({ title, color = 'bg-indigo-500' }) => (
 );
 
 const Profile = ({ onNavigate, onProfileUpdate }) => {
+  const theme = useAppTheme();
   // Check if user is a registered member
   const isRegisteredMember = (() => {
     try {
@@ -106,9 +108,11 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
   const [originalData, setOriginalData] = useState(null);
   const [activeTab, setActiveTab] = useState('Details');
   const [expandedMember, setExpandedMember] = useState(null);
+  const [selectedTrustId, setSelectedTrustId] = useState(() => localStorage.getItem('selected_trust_id') || '');
 
   const [profileData, setProfileData] = useState({
     name: '', role: '', memberId: '', mobile: '', email: '',
+    members_id: '',
     address_home: '', address_office: '', company_name: '',
     resident_landline: '', office_landline: '',
     gender: '', marital_status: '', nationality: '', aadhaar_id: '',
@@ -163,18 +167,58 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
       setActiveTab(requestedTab);
       localStorage.removeItem('openProfileTab');
     }
-    loadProfile();
   }, []);
+
+  useEffect(() => {
+    const syncTrustId = () => {
+      const next = localStorage.getItem('selected_trust_id') || '';
+      setSelectedTrustId((prev) => (prev === next ? prev : next));
+    };
+    const onTrustChanged = (event) => {
+      const next = event?.detail?.trustId || localStorage.getItem('selected_trust_id') || '';
+      setSelectedTrustId((prev) => (prev === next ? prev : next));
+    };
+    syncTrustId();
+    window.addEventListener('trust-changed', onTrustChanged);
+    window.addEventListener('focus', syncTrustId);
+    window.addEventListener('storage', syncTrustId);
+    document.addEventListener('visibilitychange', syncTrustId);
+    return () => {
+      window.removeEventListener('trust-changed', onTrustChanged);
+      window.removeEventListener('focus', syncTrustId);
+      window.removeEventListener('storage', syncTrustId);
+      document.removeEventListener('visibilitychange', syncTrustId);
+    };
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [selectedTrustId]);
+
+  const getSelectedMembershipFromUser = (user) => {
+    const memberships = Array.isArray(user?.hospital_memberships) ? user.hospital_memberships : [];
+    if (!memberships.length) return null;
+    if (selectedTrustId) {
+      const forSelectedTrust = memberships.find((m) => String(m?.trust_id || '') === String(selectedTrustId));
+      if (forSelectedTrust) return forSelectedTrust;
+    }
+    return memberships.find((m) => m?.is_active) || memberships[0] || null;
+  };
 
   const loadProfile = async () => {
     setLoading(true);
     try {
       const response = await getProfile();
       const p = response?.profile;
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const selectedMembership = getSelectedMembershipFromUser(user);
       if (response?.success && p) {
         setProfileData({
-          name: p.name || '', role: p.role || '', memberId: p.memberId || p.member_id || '',
-          mobile: p.mobile || '', email: p.email || '',
+          name: p.name || user.name || user.Name || '',
+          role: p.role || selectedMembership?.role || user.type || '',
+          memberId: p.memberId || p.member_id || selectedMembership?.membership_number || user.membershipNumber || user['Membership number'] || '',
+          members_id: p.members_id || user.members_id || user.member_id || user.id || '',
+          mobile: p.mobile || user.mobile || user.Mobile || '', email: p.email || user.email || user.Email || '',
           address_home: p.address_home || '', address_office: p.address_office || '',
           company_name: p.company_name || '', resident_landline: p.resident_landline || '',
           office_landline: p.office_landline || '', gender: p.gender || '',
@@ -202,17 +246,25 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
 
   const loadFromLS = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const selectedMembership = getSelectedMembershipFromUser(user);
     const key = `userProfile_${user.Mobile || user.mobile || user.id || 'default'}`;
     const saved = localStorage.getItem(key);
     if (saved) {
       const p = JSON.parse(saved);
-      setProfileData(prev => ({ ...prev, ...p }));
+      setProfileData(prev => ({
+        ...prev,
+        ...p,
+        role: selectedMembership?.role || p?.role || prev.role || '',
+        memberId: selectedMembership?.membership_number || p?.memberId || p?.member_id || prev.memberId || ''
+      }));
       if (p.profile_photo_url) setPhotoPreview(p.profile_photo_url);
     } else {
       setProfileData(prev => ({
         ...prev,
-        name: user['Name'] || '', role: user.type || '',
-        memberId: user['Membership number'] || user.membership_number || '',
+        name: user.name || user['Name'] || '',
+        role: selectedMembership?.role || user.type || '',
+        memberId: selectedMembership?.membership_number || user.membershipNumber || user['Membership number'] || user.membership_number || '',
+        members_id: user.members_id || user.member_id || user.id || '',
         mobile: user.Mobile || user.mobile || '', email: user.Email || user.email || '',
         address_home: user['Address Home'] || '', address_office: user['Address Office'] || '',
         company_name: user['Company Name'] || '',
@@ -278,7 +330,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
       }
     } catch (err) {
       console.error('Profile save error:', err);
-      setMessage({ type: 'error', text: 'Failed to save. Please try again.' });
+      setMessage({ type: 'error', text: err?.message || 'Failed to save. Please try again.' });
     }
     finally { setSaving(false); }
   };
@@ -323,7 +375,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
       {/* Navbar - Brand */}
       <div
         className="px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md"
-        style={{ background: 'linear-gradient(135deg, #C0241A 0%, #9B1A13 35%, #2B2F7E 100%)', paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}
+        style={{ background: `linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-dark) 35%, var(--brand-navy) 100%)`, paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}
       >
         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 rounded-xl hover:bg-white/10 transition-colors">
           {isMenuOpen ? <X className="h-6 w-6 text-white" /> : <Menu className="h-6 w-6 text-white" />}
@@ -395,7 +447,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
           <button key={tab} onClick={() => setActiveTab(tab)}
             className="flex-1 py-4 text-sm font-bold transition-all border-b-2"
             style={activeTab === tab
-              ? { borderColor: '#C0241A', color: '#C0241A' }
+              ? { borderColor: 'var(--brand-red)', color: 'var(--brand-red)' }
               : { borderColor: 'transparent', color: '#94a3b8' }}
           >
             {tab}
@@ -409,7 +461,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
           {/* Basic — locked fields */}
           <SectionHeader title="Basic Info" color="bg-gray-400" />
           <div className="space-y-3">
-            <RowField label="Name" value={profileData.name} onChange={set('name')} disabled={!!profileData.memberId} />
+            <RowField label="Name" value={profileData.name} onChange={set('name')} disabled />
             <RowField label="Contact Number" value={profileData.mobile} onChange={set('mobile')} disabled />
             <RowField label="Member ID" value={profileData.memberId} onChange={set('memberId')} disabled />
           </div>
@@ -501,7 +553,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
             </div>
             <button onClick={addMember}
               className="flex items-center gap-1.5 text-white px-4 py-2.5 rounded-xl text-sm font-semibold active:scale-95 transition-all"
-              style={{ background: 'linear-gradient(135deg, #C0241A 0%, #9B1A13 40%, #2B2F7E 100%)' }}>
+              style={{ background: 'linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-dark) 40%, var(--brand-navy) 100%)' }}>
               <Plus className="h-4 w-4" /> Add Member
             </button>
           </div>
@@ -513,7 +565,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
               <p className="text-gray-400 text-sm px-8">Add members so you can book appointments for them</p>
               <button onClick={addMember}
                 className="mt-2 px-6 py-3 text-white rounded-xl text-sm font-semibold flex items-center gap-2 active:scale-95 transition-all"
-                style={{ background: 'linear-gradient(135deg, #C0241A 0%, #9B1A13 40%, #2B2F7E 100%)' }}>
+                style={{ background: 'linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-dark) 40%, var(--brand-navy) 100%)' }}>
                 <Plus className="h-4 w-4" /> Add First Member
               </button>
             </div>
@@ -651,7 +703,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
       <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-5 pt-4 bg-gradient-to-t from-white via-white to-transparent max-w-full md:max-w-[430px] md:mx-auto pointer-events-none">
         <button onClick={handleSave} disabled={saving}
           className="pointer-events-auto w-full py-4 text-white rounded-2xl font-bold text-base active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg, #C0241A 0%, #9B1A13 40%, #2B2F7E 100%)', boxShadow: '0 8px 24px rgba(192,36,26,0.30)' }}>
+          style={{ background: 'linear-gradient(135deg, var(--brand-red) 0%, var(--brand-red-dark) 40%, var(--brand-navy) 100%)', boxShadow: '0 8px 24px color-mix(in srgb, var(--brand-red) 30%, transparent)' }}>
           {saving ? <><div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" /> Saving...</> : <><Save className="h-5 w-5" /> Save Profile</>}
         </button>
       </div>
@@ -708,7 +760,7 @@ const Profile = ({ onNavigate, onProfileUpdate }) => {
               <button onClick={async () => { await handleSave(); setShowNavWarning(false); if (navTarget) onNavigate(navTarget); }}
                 disabled={saving}
                 className="flex-1 text-white py-3 rounded-xl font-semibold active:scale-95 transition-all disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #C0241A 0%, #2B2F7E 100%)' }}>
+                style={{ background: 'linear-gradient(135deg, var(--brand-red) 0%, var(--brand-navy) 100%)' }}>
                 {saving ? 'Saving...' : 'Save & Go'}
               </button>
             </div>

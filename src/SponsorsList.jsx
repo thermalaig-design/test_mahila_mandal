@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Building2, ChevronRight, Star } from 'lucide-react';
 import { getSponsors } from './services/api';
-import { fetchAllTrusts, fetchMemberTrusts, fetchTrustById } from './services/trustService';
+import { fetchMemberTrusts, fetchTrustById } from './services/trustService';
 import { useTheme } from './hooks';
 
 const SponsorsList = ({ onNavigate, onBack }) => {
@@ -28,16 +28,21 @@ const SponsorsList = ({ onNavigate, onBack }) => {
 
         let trustsList = [];
         if (membersId) {
-          trustsList = await fetchMemberTrusts(membersId);
+          const memberTrusts = await fetchMemberTrusts(membersId);
+          trustsList = memberTrusts.filter((t) => t?.is_active !== false);
         }
 
-        if (!trustsList.length) {
-          const fallbackTrust = selectedTrustId ? await fetchTrustById(selectedTrustId) : null;
-          if (fallbackTrust) {
-            trustsList = [fallbackTrust];
+        if (selectedTrustId) {
+          const selectedFromMembership = trustsList.filter((t) => t?.id === selectedTrustId);
+          if (selectedFromMembership.length) {
+            trustsList = selectedFromMembership;
           } else {
-            trustsList = await fetchAllTrusts();
+            const fallbackTrust = await fetchTrustById(selectedTrustId);
+            trustsList = fallbackTrust ? [fallbackTrust] : [];
           }
+        } else if (!trustsList.length) {
+          const fallbackTrust = await fetchTrustById(localStorage.getItem('selected_trust_id') || '');
+          trustsList = fallbackTrust ? [fallbackTrust] : [];
         }
 
         const uniqueTrusts = [];
@@ -88,7 +93,7 @@ const SponsorsList = ({ onNavigate, onBack }) => {
 
   return (
     <div className="min-h-screen" style={{ background: `linear-gradient(160deg, #ffffff 0%, ${theme.accentBg || '#f8fafc'} 48%, #ffffff 100%)` }}>
-      <div className="bg-white/90 backdrop-blur border-b border-gray-200 px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
+      <div className="theme-navbar backdrop-blur border-b px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={onBack} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
           <ArrowLeft className="h-5 w-5 text-gray-700" />
         </button>
@@ -180,3 +185,5 @@ const SponsorsList = ({ onNavigate, onBack }) => {
 };
 
 export default SponsorsList;
+
+

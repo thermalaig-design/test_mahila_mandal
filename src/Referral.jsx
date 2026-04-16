@@ -1,3 +1,4 @@
+﻿import { useAppTheme } from './context/ThemeContext';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Users, Clock, FileText, UserPlus, Bell, ChevronRight, LogOut, Heart, Shield, Plus, ArrowRight, Pill, ShoppingCart, Calendar, Stethoscope, Building2, Phone, QrCode, Monitor, Brain, Package, FileCheck, Search, Filter, MapPin, Star, HelpCircle, BookOpen, Video, Headphones, Menu, X, Home as HomeIcon, Settings, Eye, Edit2, Info, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { createReferral, getUserReferrals, getReferralCounts, updateReferral, deleteReferral } from './services/api';
@@ -407,7 +408,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
       className={`bg-white min-h-screen pb-10 relative${isMenuOpen ? ' overflow-hidden max-h-screen' : ''}`}
     >
       {/* Navbar */}
-      <div className="bg-white border-gray-200 shadow-sm border-b px-4 sm:px-6 py-5 flex items-center justify-between sticky top-0 z-50 transition-all duration-300 pointer-events-auto" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)' }}>
+      <div className="theme-navbar shadow-sm border-b px-4 sm:px-6 py-5 flex items-center justify-between sticky top-0 z-50 transition-all duration-300 pointer-events-auto" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)' }}>
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="p-2 rounded-xl hover:bg-gray-100 transition-colors pointer-events-auto"
@@ -441,7 +442,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
 
       {referenceView === 'menu' && (
         <>
-          {/* ── Top indigo hero header ── */}
+          {/* â”€â”€ Top indigo hero header â”€â”€ */}
           <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 px-5 pt-5 pb-10">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
@@ -453,7 +454,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
               </div>
             </div>
 
-            {/* ── Compact quota bar ── */}
+            {/* â”€â”€ Compact quota bar â”€â”€ */}
             <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-4 py-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white text-xs font-semibold">Your Referral Quota</span>
@@ -483,10 +484,10 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
             </div>
           </div>
 
-          {/* ── White card pulled up over header ── */}
+          {/* â”€â”€ White card pulled up over header â”€â”€ */}
           <div className="bg-gray-50 rounded-t-3xl -mt-5 pt-5 px-4 min-h-screen">
 
-            {/* ── PRIMARY CTA — New Reference ── */}
+            {/* â”€â”€ PRIMARY CTA â€” New Reference â”€â”€ */}
             <button
               onClick={() => setReferenceView('addNew')}
               disabled={total >= 4}
@@ -511,7 +512,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
                     {total >= 4 ? 'Quota Full' : 'New Reference'}
                   </p>
                   <p className={`text-xs font-medium mt-0.5 ${total >= 4 ? 'text-gray-400' : 'text-indigo-100'}`}>
-                    {total >= 4 ? 'You have used all 4 referral slots' : 'Tap here to refer a patient →'}
+                    {total >= 4 ? 'You have used all 4 referral slots' : 'Tap here to refer a patient â†’'}
                   </p>
                 </div>
                 <ChevronRight className={`h-6 w-6 flex-shrink-0 transition-transform group-hover:translate-x-1 ${total >= 4 ? 'text-gray-400' : 'text-white/70 group-hover:text-white'
@@ -519,7 +520,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
               </div>
             </button>
 
-            {/* ── Reference History ── */}
+            {/* â”€â”€ Reference History â”€â”€ */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-base font-bold text-gray-800">Reference History</h3>
@@ -814,7 +815,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
               disabled={!newReference.category || !canAddReference(newReference.category) || loading}
               className={`w-full mt-6 py-4 rounded-2xl font-bold text-base shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${!newReference.category || !canAddReference(newReference.category) || loading
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'text-white btn-brand-inline hover:bg-indigo-700'
                 }`}
             >
               {loading ? (
@@ -858,7 +859,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
               <p className="text-sm text-gray-500 mb-6">Start referring patients to our specialists</p>
               <button
                 onClick={() => setReferenceView('addNew')}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all"
+                className="px-6 py-3 text-white btn-brand-inline rounded-xl font-semibold hover:bg-indigo-700 transition-all"
               >
                 Add New Reference
               </button>
@@ -1181,7 +1182,7 @@ const Referral = ({ onNavigate, referenceView, setReferenceView, newReference, s
               disabled={loading}
               className={`w-full mt-6 py-4 rounded-2xl font-bold text-base shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${loading
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'text-white btn-brand-inline hover:bg-indigo-700'
                 }`}
             >
               {loading ? (

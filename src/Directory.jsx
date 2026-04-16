@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { User, Mail, Calendar, MapPin, Briefcase, Award, Users, Search, Phone, Star, Stethoscope, Building2, ChevronRight, Filter, ArrowLeft, Menu, LogOut, Bell, Heart, ArrowRight, X, Home as HomeIcon, Clock, FileText, UserPlus, Pill, ChevronLeft } from 'lucide-react';
-import { getMemberTypes, getAllHospitals, getAllElectedMembers, getAllCommitteeMembers, getMembersPage, getProfilePhotos } from './services/api';
+import { getMemberTypes, getAllMembers, getAllHospitals, getAllElectedMembers, getAllCommitteeMembers, getMembersPage, getProfilePhotos } from './services/api';
 import { getOpdDoctors } from './services/supabaseService';
 import Sidebar from './components/Sidebar';
 import { fetchFeatureFlags, subscribeFeatureFlags } from './services/featureFlags';
@@ -52,7 +52,57 @@ const sortMembersByMembershipNumber = (members = []) => {
   });
 };
 
+const normalizeRoleText = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const hasRoleKeyword = (member, keyword) => {
+  const normalizedKeyword = normalizeRoleText(keyword);
+  if (!normalizedKeyword) return false;
+  const roleText = normalizeRoleText(
+    member?.role ||
+    member?.type ||
+    member?.position ||
+    member?.member_role ||
+    member?.title
+  );
+  return roleText.includes(normalizedKeyword);
+};
+
+const TRUSTEE_ROLE_KEYWORDS = [
+  'trustee',
+  'president',
+  'founder',
+  'chairman',
+  'adhyaksha',
+  'upadhyaksha',
+  'mantri',
+  'secretary',
+  'koshadhyaksha',
+  'treasurer',
+  'salahakar',
+  'advisor',
+  'auditor'
+];
+
+const isTrusteeLikeRole = (member) => {
+  const roleText = normalizeRoleText(
+    member?.role ||
+    member?.type ||
+    member?.position ||
+    member?.member_role ||
+    member?.title
+  );
+
+  if (!roleText) return false;
+  return TRUSTEE_ROLE_KEYWORDS.some((kw) => roleText.includes(kw));
+};
+
 const Directory = ({ onNavigate }) => {
+  const theme = useAppTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [directoryTab, setDirectoryTab] = useState('healthcare');
   const [searchQuery, setSearchQuery] = useState('');
@@ -203,6 +253,18 @@ const Directory = ({ onNavigate }) => {
             }
           }
         }
+
+        // Trustees/Patrons need role-based filtering from complete dataset.
+        // If we only have one paginated page, these tabs can incorrectly show "No results found".
+        if ((tabId === 'trustees' || tabId === 'patrons') && totalMembersCount && allMembers.length < totalMembersCount) {
+          const trustId = localStorage.getItem('selected_trust_id') || null;
+          const trustName = localStorage.getItem('selected_trust_name') || null;
+          const fullRes = await getAllMembers(trustId, trustName);
+          const fullData = fullRes?.data || [];
+          setAllMembers(fullData);
+          setTotalMembersCount(fullRes?.count ?? fullData.length);
+        }
+
         // Load member types if not loaded
         if (memberTypes.length === 0) {
           const trustId = localStorage.getItem('selected_trust_id') || null;
@@ -329,7 +391,7 @@ const Directory = ({ onNavigate }) => {
       console.error(`Error loading data for tab ${tabId}:`, err);
       setError(`Failed to load data: ${err.message || 'Please make sure backend server is running'}`);
     }
-  }, [allMembers.length, hospitals.length, electedMembers.length, committeeMembers.length, memberTypes.length, itemsPerPage, getProfilePhotos, supaDoctors.length]);
+  }, [allMembers.length, hospitals.length, electedMembers.length, committeeMembers.length, memberTypes.length, totalMembersCount, itemsPerPage, getProfilePhotos, supaDoctors.length]);
 
   // Load minimal data on mount - only first page of members
   useEffect(() => {
@@ -412,14 +474,11 @@ const Directory = ({ onNavigate }) => {
       return [...healthcareMembers, ...hospitals];
     } else if (tabId === 'trustees') {
       const trustees = allMembers.filter(member => {
-        const roleValue = String(member?.role || member?.type || '').toLowerCase().trim();
-        return roleValue === 'trustee' || roleValue === 'trustees';
+        return isTrusteeLikeRole(member);
       });
 
       const electedTrustees = electedMembers.filter(elected => {
-        const roleValue = String(elected?.role || elected?.type || '').toLowerCase().trim();
-        return roleValue === 'trustee' || roleValue === 'trustees' ||
-          (elected.type && elected.type.toLowerCase().includes('trustee'));
+        return isTrusteeLikeRole(elected);
       });
 
       // Also add elected members that are not already included (in case merging failed)
@@ -449,17 +508,21 @@ const Directory = ({ onNavigate }) => {
         )
       );
 
+      if (unique.length > 0) return unique;
+
+      // Fallback: some trusts store leadership roles in custom text (not "trustee")
+      // and we still want the Directory tab to show role-linked members.
+      const roleBasedFallback = allMembers.filter((member) => normalizeRoleText(member?.role).length > 0);
+      if (roleBasedFallback.length > 0) return roleBasedFallback;
+
       return unique;
     } else if (tabId === 'patrons') {
       const patrons = allMembers.filter(member => {
-        const roleValue = String(member?.role || member?.type || '').toLowerCase().trim();
-        return roleValue === 'patron' || roleValue === 'patrons';
+        return hasRoleKeyword(member, 'patron');
       });
 
       const electedPatrons = electedMembers.filter(elected => {
-        const roleValue = String(elected?.role || elected?.type || '').toLowerCase().trim();
-        return roleValue === 'patron' || roleValue === 'patrons' ||
-          (elected.type && elected.type.toLowerCase().includes('patron'));
+        return hasRoleKeyword(elected, 'patron');
       });
 
       // Combine and remove duplicates based on membership number
@@ -706,7 +769,7 @@ const Directory = ({ onNavigate }) => {
       {/* Navbar - Brand theme */}
       <div
         className="px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md transition-all duration-300 pointer-events-auto"
-        style={{ background: 'linear-gradient(135deg, var(--brand-navy-dark) 0%, var(--brand-navy) 60%, #3d4299 100%)', paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}
+        style={{ background: `linear-gradient(135deg, ${theme.secondary} 0%, ${theme.primary} 100%)`, paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}
       >
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -1069,7 +1132,7 @@ const Directory = ({ onNavigate }) => {
                         )}
                       {item.location && item.location !== 'N/A' && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: '#f0fdf4', color: '#166534' }}>
-                          📍 {item.location}
+                          ðŸ“ {item.location}
                         </span>
                       )}
                       {(item.hospital_type || item.trust_name) &&
@@ -1078,7 +1141,7 @@ const Directory = ({ onNavigate }) => {
                         )}
                       {item.city && item.city !== 'N/A' && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={{ background: '#f0fdf4', color: '#166534' }}>
-                          📍 {item.city}{item.state && item.state !== 'N/A' ? `, ${item.state}` : ''}
+                          ðŸ“ {item.city}{item.state && item.state !== 'N/A' ? `, ${item.state}` : ''}
                         </span>
                       )}
                     </div>
@@ -1153,7 +1216,7 @@ const Directory = ({ onNavigate }) => {
                 disabled={currentPage === 1}
                 className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all ${currentPage === 1 ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white text-[var(--brand-navy)] border border-[var(--brand-navy-light)] active:scale-95'}`}
               >
-                ← Prev
+                â† Prev
               </button>
               <div className="flex items-center gap-1">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -1176,14 +1239,14 @@ const Directory = ({ onNavigate }) => {
                 })}
               </div>
               <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--brand-navy)' }}>
-                {startIndex + 1}–{Math.min(endIndex, filteredMembers.length)} / {filteredMembers.length}
+                {startIndex + 1}â€“{Math.min(endIndex, filteredMembers.length)} / {filteredMembers.length}
               </span>
               <button
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
                 className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all ${currentPage === totalPages ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white text-[var(--brand-navy)] border border-[var(--brand-navy-light)] active:scale-95'}`}
               >
-                Next →
+                Next â†’
               </button>
             </div>
           </div>

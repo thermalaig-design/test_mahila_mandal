@@ -1,3 +1,4 @@
+﻿import { useAppTheme } from './context/ThemeContext';
 import React, { useState, useEffect } from 'react';
 import { User, Users, Stethoscope, Building2, Star, Award, ChevronLeft, Phone, Mail, MapPin, FileText, Clock } from 'lucide-react';
 import { getProfilePhotos } from './services/api';
@@ -73,7 +74,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
           <div className="flex items-center mb-4">
             <button 
               onClick={onNavigateBack}
-              className="p-2 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-1 text-indigo-600"
+              className="p-2 rounded-xl hover:bg-gray-100 transition-colors flex items-center gap-1 text-[color:var(--brand-navy)]"
             >
               <ChevronLeft className="h-5 w-5" />
               <span className="text-sm font-medium">Back</span>
@@ -97,27 +98,27 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                     e.target.style.display = 'none';
                     const iconContainer = e.target.parentElement;
                     if (member.type && member.type.toLowerCase().includes('doctor')) {
-                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-stethoscope h-8 w-8 text-indigo-600"><path d="M4.8 2.3A.3.3 0 1 0 5 2a.3.3 0 0 0-.2.3Z"/><path d="M10 2a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z"/><path d="M10 7v10.5c0 .3.2.5.5.5h3c.3 0 .5-.2.5-.5V7"/><path d="M12 17v4"/><path d="M8 21h8"/></svg>';
+                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-stethoscope h-8 w-8 text-[color:var(--brand-navy)]"><path d="M4.8 2.3A.3.3 0 1 0 5 2a.3.3 0 0 0-.2.3Z"/><path d="M10 2a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Z"/><path d="M10 7v10.5c0 .3.2.5.5.5h3c.3 0 .5-.2.5-.5V7"/><path d="M12 17v4"/><path d="M8 21h8"/></svg>';
                     } else if (member.type && member.type.toLowerCase().includes('committee')) {
-                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users h-8 w-8 text-indigo-600"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-users h-8 w-8 text-[color:var(--brand-navy)]"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
                     } else if (member.type && (member.type.toLowerCase().includes('trustee') || member.type.toLowerCase().includes('patron'))) {
-                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star h-8 w-8 text-indigo-600"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-star h-8 w-8 text-[color:var(--brand-navy)]"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
                     } else {
-                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user h-8 w-8 text-indigo-600"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+                      iconContainer.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-user h-8 w-8 text-[color:var(--brand-navy)]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
                     }
                   }}
                 />
               ) : (
-                member.type && member.type.toLowerCase().includes('doctor') ? <Stethoscope className="h-8 w-8 text-indigo-600" /> : 
-                member.type && member.type.toLowerCase().includes('committee') ? <Users className="h-8 w-8 text-indigo-600" /> : 
-                member.type && (member.type.toLowerCase().includes('trustee') || member.type.toLowerCase().includes('patron')) ? <Star className="h-8 w-8 text-indigo-600" /> : 
-                <User className="h-8 w-8 text-indigo-600" />
+                member.type && member.type.toLowerCase().includes('doctor') ? <Stethoscope className="h-8 w-8 text-[color:var(--brand-navy)]" /> : 
+                member.type && member.type.toLowerCase().includes('committee') ? <Users className="h-8 w-8 text-[color:var(--brand-navy)]" /> : 
+                member.type && (member.type.toLowerCase().includes('trustee') || member.type.toLowerCase().includes('patron')) ? <Star className="h-8 w-8 text-[color:var(--brand-navy)]" /> : 
+                <User className="h-8 w-8 text-[color:var(--brand-navy)]" />
               )}
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-800">{displayName}</h2>
                 {!member.isHospitalMember && displayRole && (
-                  <p className="text-indigo-600 text-sm font-medium">{displayRole}</p>
+                  <p className="text-sm font-medium" style={{ color: theme.primary }}>{displayRole}</p>
                 )}
             </div>
           </div>
@@ -198,7 +199,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Mobile</p>
-                          <a href={`tel:${member['Mobile'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member['Mobile'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Mobile']}
                           </a>
                         </div>
@@ -210,7 +211,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Mail className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Email</p>
-                          <a href={`mailto:${member['Email']}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`mailto:${member['Email']}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Email']}
                           </a>
                         </div>
@@ -242,7 +243,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Resident Landline</p>
-                          <a href={`tel:${member['Resident Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member['Resident Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Resident Landline']}
                           </a>
                         </div>
@@ -254,7 +255,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Office Landline</p>
-                          <a href={`tel:${member['Office Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member['Office Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Office Landline']}
                           </a>
                         </div>
@@ -361,7 +362,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Phone 1</p>
-                          <a href={`tel:${member.phone1.replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member.phone1.replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member.phone1}
                           </a>
                         </div>
@@ -373,7 +374,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Phone 2</p>
-                          <a href={`tel:${member.phone2.replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member.phone2.replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member.phone2}
                           </a>
                         </div>
@@ -385,7 +386,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Mobile</p>
-                          <a href={`tel:${member.Mobile.replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member.Mobile.replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member.Mobile}
                           </a>
                         </div>
@@ -397,7 +398,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Mail className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Email</p>
-                          <a href={`mailto:${member.Email}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`mailto:${member.Email}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member.Email}
                           </a>
                         </div>
@@ -515,7 +516,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Mobile</p>
-                          <a href={`tel:${member['Mobile'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member['Mobile'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Mobile']}
                           </a>
                         </div>
@@ -527,7 +528,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Resident Landline</p>
-                          <a href={`tel:${member['Resident Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member['Resident Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Resident Landline']}
                           </a>
                         </div>
@@ -539,7 +540,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Office Landline</p>
-                          <a href={`tel:${member['Office Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`tel:${member['Office Landline'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Office Landline']}
                           </a>
                         </div>
@@ -551,7 +552,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                         <Mail className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Email</p>
-                          <a href={`mailto:${member['Email']}`} className="font-medium text-indigo-600 hover:underline">
+                          <a href={`mailto:${member['Email']}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                             {member['Email']}
                           </a>
                         </div>
@@ -640,7 +641,7 @@ const MemberDetails = ({ member, onNavigateBack, previousScreenName }) => {
                       <Phone className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
                         <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Mobile</p>
-                        <a href={`tel:${member['Mobile'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium text-indigo-600 hover:underline">
+                        <a href={`tel:${member['Mobile'].replace(/\s+/g, '').split(',')[0]}`} className="font-medium hover:underline" style={{ color: theme.primary }}>
                           {member['Mobile']}
                         </a>
                       </div>

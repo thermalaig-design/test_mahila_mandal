@@ -1,8 +1,10 @@
+﻿import { useAppTheme } from './context/ThemeContext';
 import React, { useState, useEffect } from 'react';
 import { User, Users, Clock, FileText, UserPlus, Bell, ChevronRight, LogOut, Heart, Shield, Plus, ArrowRight, Pill, ShoppingCart, Calendar, Stethoscope, Building2, Phone, QrCode, Monitor, Brain, Package, FileCheck, Search, Filter, MapPin, Star, HelpCircle, BookOpen, Video, Headphones, Menu, X, Home as HomeIcon, Settings } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 
 const Notices = ({ onNavigate }) => {
+  const theme = useAppTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const allNotices = [
     {
@@ -67,7 +69,7 @@ const Notices = ({ onNavigate }) => {
   return (
     <div className={`bg-white min-h-screen pb-10 relative${isMenuOpen ? ' overflow-hidden max-h-screen' : ''}`}>
       {/* Navbar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-5 flex items-center justify-between sticky top-0 z-50 shadow-sm pointer-events-auto" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)' }}>
+      <div className="theme-navbar border-b px-6 py-5 flex items-center justify-between sticky top-0 z-50 shadow-sm pointer-events-auto" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)' }}>
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="p-2 rounded-xl hover:bg-gray-100 transition-colors pointer-events-auto"
@@ -77,7 +79,7 @@ const Notices = ({ onNavigate }) => {
         <h1 className="text-lg font-bold text-gray-800">Notice Board</h1>
         <button
           onClick={() => onNavigate('home')}
-          className="p-2 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center text-indigo-600"
+          className="p-2 rounded-xl hover:bg-gray-100 transition-colors flex items-center justify-center" style={{ color: theme.primary }}
         >
           <HomeIcon className="h-5 w-5" />
         </button>
@@ -103,7 +105,7 @@ const Notices = ({ onNavigate }) => {
       <div className="bg-white px-6 pt-8 pb-4">
         <div className="flex items-center gap-4">
           <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100">
-            <Bell className="h-12 w-12 text-indigo-600" />
+            <Bell className="h-12 w-12" style={{ color: theme.secondary }} />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Important Updates</h1>
@@ -115,9 +117,9 @@ const Notices = ({ onNavigate }) => {
       {/* Notices List */}
       <div className="px-6 py-4 space-y-4">
         {allNotices.map((notice) => (
-          <div key={notice.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-indigo-100 transition-all border-l-4 border-l-indigo-600">
+          <div key={notice.id} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-indigo-100 transition-all border-l-4" style={{ borderLeftColor: theme.primary }}>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ color: theme.primary, background: `color-mix(in srgb, ${theme.primary} 10%, white)` }}>
                 {notice.tag}
               </span>
               <div className="flex items-center gap-1.5 text-gray-400 text-[10px] font-bold">
@@ -135,7 +137,7 @@ const Notices = ({ onNavigate }) => {
             </p>
 
             <div className="mt-4 pt-4 border-t border-gray-50 flex justify-end">
-              <button className="text-indigo-600 text-xs font-bold flex items-center gap-1 hover:underline transition-all">
+              <button className="text-xs font-bold flex items-center gap-1 hover:underline transition-all" style={{ color: theme.primary }}>
                 Read Full Detail <ArrowRight className="h-3 w-3" />
               </button>
             </div>

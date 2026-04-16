@@ -1,3 +1,4 @@
+﻿import { useAppTheme } from './context/ThemeContext';
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Building2, Globe, Mail, MapPin, Phone, Star } from 'lucide-react';
 import { getSponsorById, getSponsors } from './services/api';
@@ -105,7 +106,7 @@ const SponsorDetails = ({ onBack }) => {
 
   return (
     <div className="min-h-screen" style={{ background: `linear-gradient(160deg, #ffffff 0%, ${theme.accentBg || '#f8fafc'} 52%, #ffffff 100%)` }}>
-      <div className="bg-white/90 backdrop-blur border-b border-gray-200 px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
+      <div className="theme-navbar backdrop-blur border-b px-5 py-4 flex items-center gap-3 sticky top-0 z-10">
         <button onClick={onBack} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
           <ArrowLeft className="h-5 w-5 text-gray-700" />
         </button>

@@ -1,4 +1,4 @@
-import axios from 'axios';
+﻿import axios from 'axios';
 import { getCurrentNotificationContext } from './notificationAudience';
 
 const buildNotificationContentKey = (notification) => {
@@ -10,19 +10,24 @@ const buildNotificationContentKey = (notification) => {
   return `${type}|${title}|${message}|${createdAtSecond}`;
 };
 
+const isMissingNotificationsColumnError = (error, columnName) => {
+  const message = String(error?.message || '');
+  const safeColumn = String(columnName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`column\\s+notifications\\.${safeColumn}\\s+does not exist`, 'i');
+  return pattern.test(message);
+};
 
-// Use /api prefix in both environments (backend routes are mounted under /api/*)
-// In emulator/device testing, localhost points to the device itself.
-// So in dev we derive backend host from current page host unless explicitly overridden.
+
+// Force local backend for current development flow.
 const resolveDevApiBaseUrl = () => {
-  return 'https://mahila-mandal-ochre.vercel.app/api';
+  return 'http://localhost:5003/api';
 };
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   (import.meta.env.DEV
     ? resolveDevApiBaseUrl()
-    : 'https://mahila-mandal-ochre.vercel.app/api');
+    : 'http://localhost:5003/api');
 
 
 // Create axios instance
@@ -116,10 +121,13 @@ export const getMemberTypes = async (trustId = null, trustName = null) => {
   }
 };
 
-// Get all doctors
-export const getAllDoctors = async () => {
+// Get all doctors (from reg_members where role includes doctor)
+export const getAllDoctors = async (trustId = null, trustName = null) => {
   try {
-    const response = await api.get('/doctors');
+    const params = new URLSearchParams();
+    if (trustId) params.append('trust_id', trustId);
+    if (trustName) params.append('trust_name', trustName);
+    const response = await api.get(`/doctors${params.toString() ? `?${params}` : ''}`);
     return response.data;
   } catch (error) {
     console.error('Error fetching doctors:', error);
@@ -257,12 +265,161 @@ export const deleteReferral = async (referralId) => {
   }
 };
 
+const isUuid = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+
+const resolveMembersIdForProfile = async (parsedUser, profileData = {}, trustId = null) => {
+  const directIds = [
+    parsedUser?.members_id,
+    parsedUser?.member_id,
+    parsedUser?.id,
+    profileData?.members_id,
+    profileData?.id
+  ].filter(Boolean);
+
+  for (const id of directIds) {
+    if (isUuid(id)) return String(id);
+  }
+
+  const { supabase } = await import('./supabaseClient.js');
+  const mobileRaw = profileData?.mobile || parsedUser?.Mobile || parsedUser?.mobile || parsedUser?.phone || '';
+  const mobileDigits = String(mobileRaw).replace(/\D/g, '');
+  const mobileVariants = Array.from(new Set([mobileRaw, mobileDigits, mobileDigits.slice(-10), `+91${mobileDigits.slice(-10)}`].filter(Boolean)));
+
+  for (const mobile of mobileVariants) {
+    const { data } = await supabase
+      .from('Members')
+      .select('members_id')
+      .eq('Mobile', mobile)
+      .limit(1);
+    if (data?.[0]?.members_id) return data[0].members_id;
+  }
+
+  const membershipNo = profileData?.memberId || parsedUser?.membershipNumber || parsedUser?.['Membership number'] || parsedUser?.membership_number || '';
+  if (membershipNo) {
+    const { data: memberByMNo } = await supabase
+      .from('Members')
+      .select('members_id')
+      .eq('Membership number', membershipNo)
+      .limit(1);
+    if (memberByMNo?.[0]?.members_id) return memberByMNo[0].members_id;
+
+    let regQuery = supabase
+      .from('reg_members')
+      .select('members_id')
+      .eq('Membership number', membershipNo)
+      .limit(1);
+    if (trustId) regQuery = regQuery.eq('trust_id', trustId);
+    const { data: regMember } = await regQuery;
+    if (regMember?.[0]?.members_id) return regMember[0].members_id;
+  }
+
+  return null;
+};
+
+const fetchProfileDirectFromSupabase = async (parsedUser, trustId = null) => {
+  const { supabase } = await import('./supabaseClient.js');
+  const membersId = await resolveMembersIdForProfile(parsedUser, {}, trustId);
+  if (!membersId) {
+    return {
+      success: true,
+      profile: {
+        name: parsedUser?.name || parsedUser?.Name || '',
+        mobile: parsedUser?.mobile || parsedUser?.Mobile || '',
+        email: parsedUser?.email || parsedUser?.Email || '',
+        members_id: null
+      }
+    };
+  }
+
+  const { data: profile, error } = await supabase
+    .from('member_profiles')
+    .select('*')
+    .eq('members_id', membersId)
+    .maybeSingle();
+  if (error) throw error;
+
+  return {
+    success: true,
+    profile: {
+      name: parsedUser?.name || parsedUser?.Name || '',
+      mobile: parsedUser?.mobile || parsedUser?.Mobile || '',
+      email: parsedUser?.email || parsedUser?.Email || '',
+      members_id: membersId,
+      profile_photo_url: profile?.profile_photo_url || '',
+      gender: profile?.gender || '',
+      dob: profile?.date_of_birth || '',
+      blood_group: profile?.blood_group || '',
+      marital_status: profile?.marital_status || '',
+      nationality: profile?.nationality || 'Indian',
+      aadhaar_id: profile?.aadhaar_id || '',
+      emergency_contact_name: profile?.emergency_contact_name || '',
+      emergency_contact_number: profile?.emergency_contact_number || '',
+      spouse_name: profile?.spouse_name || '',
+      spouse_contact_number: profile?.spouse_contact || '',
+      children_count: profile?.no_of_children ?? '',
+      facebook: profile?.facebook || '',
+      twitter: profile?.twitter || '',
+      instagram: profile?.instagram || '',
+      linkedin: profile?.linkedin || '',
+      whatsapp: profile?.whatsapp || ''
+    }
+  };
+};
+
+const saveProfileDirectToSupabase = async (profileData, parsedUser, trustId = null) => {
+  const { supabase } = await import('./supabaseClient.js');
+  const membersId = await resolveMembersIdForProfile(parsedUser, profileData, trustId);
+  if (!membersId) {
+    throw new Error('Member not found');
+  }
+
+  const upsertPayload = {
+    members_id: membersId,
+    profile_photo_url: profileData.profile_photo_url || null,
+    gender: profileData.gender || null,
+    date_of_birth: profileData.dob || null,
+    blood_group: profileData.blood_group || null,
+    marital_status: profileData.marital_status || null,
+    nationality: profileData.nationality || 'Indian',
+    aadhaar_id: profileData.aadhaar_id || null,
+    emergency_contact_name: profileData.emergency_contact_name || null,
+    emergency_contact_number: profileData.emergency_contact_number || null,
+    spouse_name: profileData.spouse_name || null,
+    spouse_contact: profileData.spouse_contact_number || null,
+    no_of_children: profileData.children_count !== '' && profileData.children_count !== null
+      ? Number(profileData.children_count) : 0,
+    facebook: profileData.facebook || null,
+    twitter: profileData.twitter || null,
+    instagram: profileData.instagram || null,
+    linkedin: profileData.linkedin || null,
+    whatsapp: profileData.whatsapp || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from('member_profiles')
+    .upsert(upsertPayload, { onConflict: 'members_id' });
+  if (error) throw error;
+
+  return {
+    success: true,
+    profile: {
+      ...profileData,
+      members_id: membersId
+    }
+  };
+};
+
 // Preload commonly used data
 // Get user profile
 export const getProfile = async () => {
   try {
     const user = localStorage.getItem('user');
-    const userId = user ? JSON.parse(user).Mobile || JSON.parse(user).mobile || JSON.parse(user).id : null;
+    const parsedUser = user ? JSON.parse(user) : null;
+    const userId = parsedUser ? parsedUser.Mobile || parsedUser.mobile || parsedUser.id : null;
+    const membersId = parsedUser?.members_id || parsedUser?.member_id || parsedUser?.id || null;
+    const trustId = localStorage.getItem('selected_trust_id') || null;
 
     if (!userId) {
       throw new Error('No user found in localStorage');
@@ -270,12 +427,22 @@ export const getProfile = async () => {
 
     const response = await api.get('/profile', {
       headers: {
-        'user-id': userId
+        'user-id': userId,
+        ...(membersId ? { 'members-id': membersId } : {}),
+        ...(trustId ? { 'trust-id': trustId } : {})
       }
     });
     return response.data;
   } catch (error) {
     console.error('Error fetching profile:', error);
+    const status = error?.response?.status;
+    if (status === 404 || status === 500) {
+      const user = localStorage.getItem('user');
+      const parsedUser = user ? JSON.parse(user) : null;
+      if (parsedUser) {
+        return await fetchProfileDirectFromSupabase(parsedUser, localStorage.getItem('selected_trust_id') || null);
+      }
+    }
     throw error;
   }
 };
@@ -284,13 +451,15 @@ export const getProfile = async () => {
 export const saveProfile = async (profileData, profilePhotoFile) => {
   try {
     const user = localStorage.getItem('user');
-    const userId = user ? JSON.parse(user).Mobile || JSON.parse(user).mobile || JSON.parse(user).id : null;
+    const parsedUser = user ? JSON.parse(user) : null;
+    const userId = parsedUser ? parsedUser.Mobile || parsedUser.mobile || parsedUser.id : null;
+    const membersId = parsedUser?.members_id || parsedUser?.member_id || parsedUser?.id || profileData?.members_id || null;
+    const trustId = localStorage.getItem('selected_trust_id') || null;
 
     if (!userId) {
       throw new Error('No user found in localStorage');
     }
 
-    // Prepare form data
     const formData = new FormData();
     formData.append('profileData', JSON.stringify(profileData));
     if (profilePhotoFile) {
@@ -299,17 +468,34 @@ export const saveProfile = async (profileData, profilePhotoFile) => {
 
     const response = await api.post('/profile/save', formData, {
       headers: {
-        'user-id': userId
+        'user-id': userId,
+        ...(membersId ? { 'members-id': membersId } : {}),
+        ...(trustId ? { 'trust-id': trustId } : {})
       }
     });
     return response.data;
   } catch (error) {
     console.error('Error saving profile:', error);
+    const status = error?.response?.status;
+    const serverMessage = error?.response?.data?.message || error?.response?.data?.error || error?.message || '';
+    const shouldFallback =
+      status === 404 ||
+      /member not found/i.test(String(serverMessage)) ||
+      /not found/i.test(String(serverMessage));
+
+    if (shouldFallback) {
+      const user = localStorage.getItem('user');
+      const parsedUser = user ? JSON.parse(user) : null;
+      if (parsedUser) {
+        return await saveProfileDirectToSupabase(profileData, parsedUser, localStorage.getItem('selected_trust_id') || null);
+      }
+    }
+
+    if (serverMessage) throw new Error(serverMessage);
     throw error;
   }
 };
-
-// Get marquee updates — direct Supabase (no backend needed)
+// Get marquee updates â€” direct Supabase (no backend needed)
 export const getMarqueeUpdates = async (trustId = null, trustName = null) => {
   try {
     const { supabase } = await import('./supabaseClient.js');
@@ -394,78 +580,104 @@ export const getSponsors = async (trustId = null, trustName = null) => {
       return { success: true, data: [] };
     }
 
-    const { data, error } = await supabase
-      .from('sponsor_flash')
-      .select(`
-        id,
-        trust_id,
-        start_date,
-        end_date,
-        duration_seconds,
-        priority,
-        sponsors (
-          id,
-          name,
-          position,
-          about,
-          photo_url,
-          company_name,
-          ref_no,
-          created_at,
-          updated_at,
-          phone,
-          badge_label,
-          email_id,
-          address,
-          city,
-          state,
-          whatsapp_number,
-          website_url,
-          catalog_url
-        )
-      `)
-      .eq('trust_id', resolvedTrustId);
+    const sponsorFieldsBase = `
+      id,
+      name,
+      position,
+      about,
+      photo_url,
+      company_name,
+      ref_no,
+      created_at,
+      updated_at,
+      phone,
+      badge_label,
+      email_id,
+      address,
+      city,
+      state,
+      whatsapp_number,
+      website_url,
+      catalog_url
+    `;
 
+    const runSponsorFlashQuery = async (withSponsorActive = true) => {
+      const sponsorFields = withSponsorActive
+        ? `is_active,${sponsorFieldsBase}`
+        : sponsorFieldsBase;
+      return supabase
+        .from('sponsor_flash')
+        .select(`
+          id,
+          trust_id,
+          start_date,
+          end_date,
+          duration_seconds,
+          priority,
+          sponsors (${sponsorFields})
+        `)
+        .eq('trust_id', resolvedTrustId)
+        .eq('status', 'active');
+    };
+
+    let { data, error } = await runSponsorFlashQuery(true);
+    if (error && /is_active/i.test(String(error?.message || ''))) {
+      const fallback = await runSponsorFlashQuery(false);
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) throw error;
 
     const today = getTodayLocal();
     const userMobileDigits = getUserMobileDigits();
     const mapped = (data || [])
       .filter((row) => {
-        const sponsor = row?.sponsors || null;
+        const sponsor = Array.isArray(row?.sponsors) ? row.sponsors[0] : row?.sponsors || null;
         if (!sponsor) return false;
+        if (typeof sponsor.is_active === 'boolean' && sponsor.is_active !== true) return false;
         if (row.start_date && !/^\d{4}-\d{2}-\d{2}$/.test(row.start_date)) return false;
         if (row.end_date && !/^\d{4}-\d{2}-\d{2}$/.test(row.end_date)) return false;
         const startOk = !row.start_date || row.start_date <= today;
-        const endOk = row.end_date && row.end_date >= today;
+        // null end_date = no expiry (always active); otherwise must not be past
+        const endOk = !row.end_date || row.end_date >= today;
         return startOk && endOk;
       })
       .map((row) => ({
-        id: row.sponsors.id,
-        name: row.sponsors.name,
-        position: row.sponsors.position,
-        about: row.sponsors.about,
-        photo_url: row.sponsors.photo_url,
-        company_name: row.sponsors.company_name,
-        ref_no: row.sponsors.ref_no,
-        created_at: row.sponsors.created_at,
-        updated_at: row.sponsors.updated_at,
-        phone: row.sponsors.phone,
-        badge_label: row.sponsors.badge_label,
-        email_id: row.sponsors.email_id,
-        address: row.sponsors.address,
-        city: row.sponsors.city,
-        state: row.sponsors.state,
-        whatsapp_number: row.sponsors.whatsapp_number,
-        website_url: row.sponsors.website_url,
-        catalog_url: row.sponsors.catalog_url,
-        is_user_match: isRefMatch(row.sponsors.ref_no, userMobileDigits),
+        sponsor_ref: Array.isArray(row?.sponsors) ? row.sponsors[0] || null : row?.sponsors || null,
         flash_id: row.id,
         trust_id: row.trust_id,
         start_date: row.start_date,
         end_date: row.end_date,
         duration_seconds: row.duration_seconds,
         flash_priority: row.priority
+      }))
+      .filter((item) => item.sponsor_ref)
+      .map((item) => ({
+        id: item.sponsor_ref.id,
+        name: item.sponsor_ref.name,
+        position: item.sponsor_ref.position,
+        about: item.sponsor_ref.about,
+        photo_url: item.sponsor_ref.photo_url,
+        company_name: item.sponsor_ref.company_name,
+        ref_no: item.sponsor_ref.ref_no,
+        created_at: item.sponsor_ref.created_at,
+        updated_at: item.sponsor_ref.updated_at,
+        phone: item.sponsor_ref.phone,
+        badge_label: item.sponsor_ref.badge_label,
+        email_id: item.sponsor_ref.email_id,
+        address: item.sponsor_ref.address,
+        city: item.sponsor_ref.city,
+        state: item.sponsor_ref.state,
+        whatsapp_number: item.sponsor_ref.whatsapp_number,
+        website_url: item.sponsor_ref.website_url,
+        catalog_url: item.sponsor_ref.catalog_url,
+        is_user_match: isRefMatch(item.sponsor_ref.ref_no, userMobileDigits),
+        flash_id: item.flash_id,
+        trust_id: item.trust_id,
+        start_date: item.start_date,
+        end_date: item.end_date,
+        duration_seconds: item.duration_seconds,
+        flash_priority: item.flash_priority
       }))
       .sort((a, b) => {
         const priorityDiff = (b.flash_priority || 0) - (a.flash_priority || 0);
@@ -542,7 +754,7 @@ export const getUserReports = async () => {
   }
 };
 
-// Get user notifications — directly from Supabase
+// Get user notifications â€” directly from Supabase
 export const getUserNotifications = async () => {
   try {
     const { supabase } = await import('./supabaseClient.js');
@@ -566,7 +778,7 @@ export const getUserNotifications = async () => {
       const patientName = String(row?.patient_name || '').trim();
       const membershipNumber = String(row?.membership_number || '').trim();
       const appointmentUserId = String(row?.user_id || '').trim();
-      // ✅ patient_phone explicitly — this is what the Supabase trigger stores as user_id
+      // âœ… patient_phone explicitly â€” this is what the Supabase trigger stores as user_id
       const patientPhone = String(row?.patient_phone || '').trim();
 
       if (patientName) fallbackUserIds.add(patientName);
@@ -591,13 +803,22 @@ export const getUserNotifications = async () => {
 
     const notificationUserIds = [...new Set([...userIdVariants, ...fallbackUserIds])];
 
-    const { data: userNotifications, error: userNotifError } = await supabase
+    let userNotifications = [];
+    const { data: directNotifications, error: userNotifError } = await supabase
       .from('notifications')
       .select('*')
       .in('user_id', notificationUserIds)
       .order('created_at', { ascending: false });
 
-    if (userNotifError) throw userNotifError;
+    if (userNotifError) {
+      if (isMissingNotificationsColumnError(userNotifError, 'user_id')) {
+        console.warn('[Notifications] notifications.user_id column missing; returning audience notifications only.');
+      } else {
+        throw userNotifError;
+      }
+    } else {
+      userNotifications = directNotifications || [];
+    }
 
     const { data: audienceNotifications, error: audienceError } = await supabase
       .from('notifications')
@@ -627,7 +848,7 @@ export const getUserNotifications = async () => {
   }
 };
 
-// Mark notification as read — directly via Supabase
+// Mark notification as read â€” directly via Supabase
 export const markNotificationAsRead = async (id) => {
   try {
     const { supabase } = await import('./supabaseClient.js');
@@ -644,7 +865,7 @@ export const markNotificationAsRead = async (id) => {
   }
 };
 
-// Mark all notifications as read — directly via Supabase
+// Mark all notifications as read â€” directly via Supabase
 export const markAllNotificationsAsRead = async () => {
   try {
     const { supabase } = await import('./supabaseClient.js');
@@ -671,7 +892,7 @@ export const markAllNotificationsAsRead = async () => {
       if (membershipNumber) fallbackUserIds.add(membershipNumber);
       if (appointmentUserId) fallbackUserIds.add(appointmentUserId);
 
-      // ✅ patient_phone variants — matches notifications stored by trigger using patient_phone
+      // âœ… patient_phone variants â€” matches notifications stored by trigger using patient_phone
       if (patientPhone) {
         fallbackUserIds.add(patientPhone);
         const digitsOnly = patientPhone.replace(/\D/g, '');
@@ -695,7 +916,12 @@ export const markAllNotificationsAsRead = async () => {
       .eq('is_read', false)
       .in('user_id', notificationUserIds);
 
-    if (userError) throw userError;
+    if (userError && !isMissingNotificationsColumnError(userError, 'user_id')) {
+      throw userError;
+    }
+    if (userError && isMissingNotificationsColumnError(userError, 'user_id')) {
+      console.warn('[Notifications] notifications.user_id column missing; skipping direct user mark-as-read update.');
+    }
 
     const { error: audienceError } = await supabase
       .from('notifications')
@@ -711,7 +937,7 @@ export const markAllNotificationsAsRead = async () => {
   }
 };
 
-// Get member trust links — direct Supabase query (no backend needed)
+// Get member trust links â€” direct Supabase query (no backend needed)
 export const getMemberTrustLinks = async (memberId) => {
   try {
     if (!memberId) {
@@ -751,7 +977,7 @@ export const getMemberTrustLinks = async (memberId) => {
   }
 };
 
-// Delete/dismiss a specific notification — uses Supabase directly (no backend needed)
+// Delete/dismiss a specific notification â€” uses Supabase directly (no backend needed)
 export const deleteNotification = async (id) => {
   try {
     const { supabase } = await import('./supabaseClient.js');
@@ -828,10 +1054,11 @@ export const preloadCommonData = async () => {
       hospitals: hospitals.status === 'fulfilled' ? hospitals.value : null
     };
 
-    console.log('✅ Preloaded common data for faster directory loading');
+    console.log('âœ… Preloaded common data for faster directory loading');
     return result;
   } catch (error) {
     console.error('Error preloading common data:', error);
     return {};
   }
 };
+

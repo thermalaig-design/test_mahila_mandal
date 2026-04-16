@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { User, Users, Stethoscope, Building2, Star, ChevronRight, ChevronLeft, Menu, X, Home as HomeIcon, Clock, FileText, UserPlus, Phone, Mail, MapPin, Search, Filter, ArrowLeft, ArrowRight } from 'lucide-react';
 import Sidebar from './components/Sidebar';
-import { getAllCommitteeMembers, getAllHospitals, getAllElectedMembers, getProfilePhotos } from './services/api';
-import { getOpdDoctors, getTrusteesAndPatrons } from './services/supabaseService';
+import { getAllCommitteeMembers, getAllDoctors, getAllElectedMembers, getProfilePhotos } from './services/api';
+import { getTrusteesAndPatrons } from './services/supabaseService';
 import { registerSidebarState, useAndroidBack } from './hooks';
+import { useAppTheme } from './context/ThemeContext';
 import { fetchFeatureFlags, subscribeFeatureFlags } from './services/featureFlags';
 import { fetchSubFeatureFlags, subscribeSubFeatureFlags } from './services/subFeatureFlags';
 
@@ -81,6 +82,7 @@ const resolveDirectoryTier = () => {
 };
 
 const HealthcareTrusteeDirectory = ({ onNavigate }) => {
+  const theme = useAppTheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedDirectory, setSelectedDirectory] = useState(null); // null, 'healthcare', 'trustee', or 'committee'
   const [activeTab, setActiveTab] = useState(null);
@@ -121,10 +123,10 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
     if (!(key in subFeatureFlags)) return true;
     return subFeatureFlags[key] !== false;
   };
-  const getSubFeatureMeta = (key) => subFeatureMeta?.[key] || {};
-  const getSubFeatureDisplayName = (key, fallback) => getSubFeatureMeta(key)?.display_name || fallback;
-  const getSubFeatureTagline = (key, fallback = '') => getSubFeatureMeta(key)?.tagline || fallback;
-  const getSubFeatureIconUrl = (key) => getSubFeatureMeta(key)?.icon_url || null;
+  const getSubFeatureMeta = useCallback((key) => subFeatureMeta?.[key] || {}, [subFeatureMeta]);
+  const getSubFeatureDisplayName = useCallback((key, fallback) => getSubFeatureMeta(key)?.display_name || fallback, [getSubFeatureMeta]);
+  const getSubFeatureTagline = useCallback((key, fallback = '') => getSubFeatureMeta(key)?.tagline || fallback, [getSubFeatureMeta]);
+  const getSubFeatureIconUrl = useCallback((key) => getSubFeatureMeta(key)?.icon_url || null, [getSubFeatureMeta]);
   const getFeatureMeta = (key) => featureMeta?.[key] || {};
   const getFeatureDisplayName = (key, fallback) => getFeatureMeta(key)?.display_name || fallback;
   const getSubFeatureOrder = (key, fallback = 9999) => {
@@ -135,20 +137,19 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
   };
 
   const isDirectoryEnabled = isFeatureEnabled('feature_directory');
-  const isDoctorsEnabled = isFeatureEnabled('feature_doctors');
-  const isHospitalsEnabled = isFeatureEnabled('feature_hospitals');
   const isCommitteeEnabled = isFeatureEnabled('feature_committee');
   const isElectedEnabled = isFeatureEnabled('feature_elected_members');
 
   const isMembersTabEnabled = hasSubFeatureConfig ? isSubFeatureEnabled('members') : true;
-  const isDoctorsTabEnabled = hasSubFeatureConfig ? isSubFeatureEnabled('doctors') : isDoctorsEnabled;
-  const isHospitalsTabEnabled = hasSubFeatureConfig ? isSubFeatureEnabled('hospitals') : isHospitalsEnabled;
+  const isDoctorsTabEnabled = hasSubFeatureConfig
+    ? (isSubFeatureEnabled('doctors') || isSubFeatureEnabled('healthcare'))
+    : true;
   const isElectedTabEnabled = hasSubFeatureConfig ? isSubFeatureEnabled('elected') : isElectedEnabled;
   const isCommitteeTabEnabled = hasSubFeatureConfig ? isSubFeatureEnabled('committee') : isCommitteeEnabled;
-  const isHealthcareEnabled = isDoctorsTabEnabled || isHospitalsTabEnabled;
+  const isHealthcareEnabled = isDoctorsTabEnabled;
 
   const canShowTrustee = isDirectoryEnabled && isMembersTabEnabled;
-  const canShowHealthcare = isDirectoryEnabled && (hasSubFeatureConfig ? isSubFeatureEnabled('healthcare') && isHealthcareEnabled : isHealthcareEnabled);
+  const canShowHealthcare = isDirectoryEnabled && isHealthcareEnabled;
   const canShowCommittee = isDirectoryEnabled && (hasSubFeatureConfig ? (isSubFeatureEnabled('committee') && (isCommitteeTabEnabled || isElectedTabEnabled)) : (isCommitteeEnabled || isElectedEnabled));
 
   useEffect(() => {
@@ -285,37 +286,30 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
 
       setAllMembers(response.data || []);
 
-      // Fetch OPD doctors from Supabase
+      // Fetch doctors from backend (reg_members where role contains "doctor")
       try {
         setOpdDoctorsLoading(true); // Set loading flag before fetching
-        console.log('Fetching OPD doctors with:', { trustId, trustName });
-        const opdResponse = await getOpdDoctors(trustId, trustName);
-        console.log('OPD doctors response:', opdResponse);
+        console.log('Fetching doctors from reg_members with:', { trustId, trustName });
+        const opdResponse = await getAllDoctors(trustId, trustName);
+        console.log('Doctors response:', opdResponse);
         if (opdResponse.success && Array.isArray(opdResponse.data)) {
           console.log('Setting OPD doctors, count:', opdResponse.data.length);
           setOpdDoctors(opdResponse.data || []);
-          console.log('OPD doctors fetched successfully:', opdResponse.data);
+          console.log('Doctors fetched successfully:', opdResponse.data);
         } else {
-          console.warn('OPD response invalid:', { success: opdResponse.success, isArray: Array.isArray(opdResponse.data) });
+          console.warn('Doctors response invalid:', { success: opdResponse.success, isArray: Array.isArray(opdResponse.data) });
           setOpdDoctors([]);
         }
       } catch (opdErr) {
-        console.error('Error fetching OPD doctors:', opdErr);
+        console.error('Error fetching doctors:', opdErr);
         setOpdDoctors([]);
       } finally {
         setOpdDoctorsLoading(false); // Clear loading flag after fetching
       }
 
-      // Fetch hospitals separately from the hospitals table
-      try {
-        const hospitalsResponse = await getAllHospitals(trustId, trustName);
-        console.log('Hospitals response:', hospitalsResponse);
-        hospitalsData = hospitalsResponse.data || [];
-        setHospitals(hospitalsData);
-      } catch (hospitalsErr) {
-        console.error('Error fetching hospitals:', hospitalsErr);
-        setHospitals([]);
-      }
+      // Healthcare should show doctors only
+      hospitalsData = [];
+      setHospitals([]);
 
       // Fetch committee members from committee_members table
       try {
@@ -396,7 +390,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
           const parsed = JSON.parse(cachedData);
 
           // If committeeMembers missing from old cache but allMembers exists,
-          // the cache was written before committee fetch — invalidate it.
+          // the cache was written before committee fetch Ã¢â‚¬â€ invalidate it.
           const isStaleCache =
             (!parsed.committeeMembers || parsed.committeeMembers.length === 0) &&
             parsed.allMembers && parsed.allMembers.length > 0;
@@ -412,7 +406,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
             return;
           }
 
-          // Stale cache — remove it and fall through to a full fetch
+          // Stale cache Ã¢â‚¬â€ remove it and fall through to a full fetch
           sessionStorage.removeItem(buildCacheKey(trustCacheKey));
           sessionStorage.removeItem(buildTimestampKey(trustCacheKey));
         }
@@ -420,7 +414,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
     } catch (err) {
       console.error('Error loading cache:', err);
     }
-    // No cache, expired cache, or stale cache — fetch data fresh
+    // No cache, expired cache, or stale cache Ã¢â‚¬â€ fetch data fresh
     fetchMembers(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -449,22 +443,62 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
   const getElectedMembersCount = () => electedMembers.length;
 
   const normalizeTrustRole = (member) => {
-    const raw = String(member?.role || member?.type || '').trim().toLowerCase();
+    const raw = String(
+      member?.role ||
+      member?.type ||
+      member?.member_role ||
+      member?.position ||
+      member?.title ||
+      member?.subtitle ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
     return raw;
   };
 
-  const isTrusteeRole = (member) => {
-    const role = normalizeTrustRole(member);
-    return role === 'trustee' || role === 'trustees';
-  };
+  const governanceRoles = useMemo(() => [
+    'trustee', 'trustees',
+    'founder', // Ek Udaan custom role
+    'president',
+    'chairman',
+    'vice-chairman',
+    'secretary',
+    'treasurer',
+    'chief patron',
+    'patron-in-chief',
+    'advisor',
+    'board member'
+  ], []);
 
-  const isPatronRole = (member) => {
+  const isTrusteeRole = useCallback((member) => {
     const role = normalizeTrustRole(member);
+    if (!role) return false;
+    // Check strict matches first
+    if (role === 'trustee' || role === 'trustees') return true;
+    // Check against governance roles list (excludes 'patron')
+    return governanceRoles.includes(role);
+  }, [governanceRoles]);
+
+  const isPatronRole = useCallback((member) => {
+    const role = normalizeTrustRole(member);
+    // Only patron and patrons - nothing else
     return role === 'patron' || role === 'patrons';
-  };
+  }, []);
 
-  const getTrusteesCount = () => allMembers.filter(isTrusteeRole).length;
-  const getPatronsCount = () => allMembers.filter(isPatronRole).length;
+  // Regular members = not a trustee, not a patron (general members like Ek Udaan members)
+  const isRegularMember = useCallback((member) => {
+    return !isTrusteeRole(member) && !isPatronRole(member);
+  }, [isTrusteeRole, isPatronRole]);
+
+  const combinedTrustMembers = useMemo(
+    () => [...allMembers, ...electedMembers],
+    [allMembers, electedMembers]
+  );
+
+  const getTrusteesCount = useCallback(() => combinedTrustMembers.filter(isTrusteeRole).length, [combinedTrustMembers, isTrusteeRole]);
+  const getPatronsCount = useCallback(() => combinedTrustMembers.filter(isPatronRole).length, [combinedTrustMembers, isPatronRole]);
+  const getRegularMembersCount = useCallback(() => combinedTrustMembers.filter(isRegularMember).length, [combinedTrustMembers, isRegularMember]);
 
   // Function to get members based on selected directory and tab
   const getMembersByDirectoryAndTab = useCallback((directory, tabId) => {
@@ -491,13 +525,9 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
         );
         console.log('Fallback doctors from allMembers:', fallbackDoctors);
         return fallbackDoctors;
-      } else if (tabId === 'hospitals') {
-        // Return hospitals from the separate hospitals array
-        console.log('Returning hospitals:', hospitals);
-        return hospitals;
       }
     } else if (directory === 'trustee') {
-      const combineMembers = [...allMembers, ...electedMembers];
+      const combineMembers = combinedTrustMembers;
 
       if (tabId === 'trustees') {
         return combineMembers.filter((member) => isTrusteeRole(member));
@@ -508,17 +538,8 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
       }
 
       if (tabId === 'members') {
-        const unique = combineMembers.filter((item, index, self) => {
-          if (isTrusteeRole(item) || isPatronRole(item)) return false;
-          const hasId = item['Membership number'] || item['S. No.'] || item.elected_id;
-          if (!hasId) return true;
-          return index === self.findIndex(i =>
-            (i['Membership number'] && item['Membership number'] && i['Membership number'] === item['Membership number']) ||
-            (i['S. No.'] && item['S. No.'] && i['S. No.'] === item['S. No.']) ||
-            (i.elected_id && item.elected_id && i.elected_id === item.elected_id)
-          );
-        });
-        return unique;
+        // Show all non-governance, non-patron members (general members)
+        return combineMembers.filter((member) => isRegularMember(member));
       }
     } else if (directory === 'committee') {
       if (tabId === 'elected') {
@@ -540,9 +561,9 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
       }
     }
     return [];
-  }, [allMembers, opdDoctors, opdDoctorsLoading, hospitals, electedMembers, committeeMembers]);
+  }, [allMembers, combinedTrustMembers, opdDoctors, opdDoctorsLoading, hospitals, electedMembers, committeeMembers, isTrusteeRole, isPatronRole, isRegularMember]);
 
-  // Healthcare Directory Tabs — memoized to keep referential stability
+  // Healthcare Directory Tabs Ã¢â‚¬â€ memoized to keep referential stability
   const healthcareTabs = useMemo(() => {
     const tabs = [
       {
@@ -552,23 +573,15 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
         icon_url: getSubFeatureIconUrl('doctors'),
         enabled: isDirectoryEnabled && isDoctorsTabEnabled
       },
-      {
-        id: 'hospitals',
-        label: `${getSubFeatureDisplayName('hospitals', 'Hospitals')} (${getHospitalsCount()})`,
-        icon: Building2,
-        icon_url: getSubFeatureIconUrl('hospitals'),
-        enabled: isDirectoryEnabled && isHospitalsTabEnabled
-      },
     ];
     const filtered = tabs.filter((t) => t.enabled);
     filtered.sort((a, b) => getSubFeatureOrder(a.id) - getSubFeatureOrder(b.id));
-    console.log('healthcareTabs after filtering:', filtered);
     return filtered;
   },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allMembers, opdDoctors, hospitals, isDirectoryEnabled, isDoctorsTabEnabled, isHospitalsTabEnabled, subFeatureMeta]);
+    [allMembers, opdDoctors, hospitals, isDirectoryEnabled, isDoctorsTabEnabled, subFeatureMeta]);
 
-  // Trustee Directory Tabs — memoized
+  // Trustee Directory Tabs Ã¢â‚¬â€ memoized
   const getTrusteeTabLabel = (tabId, count) => {
     if (tabId === 'trustees') return `Trustees (${count})`;
     if (tabId === 'patrons') return `Patrons (${count})`;
@@ -578,6 +591,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
   const trusteeTabs = useMemo(() => {
     const trusteesCount = getTrusteesCount();
     const patronsCount = getPatronsCount();
+    const regularMembersCount = getRegularMembersCount();
 
     const tabs = [];
 
@@ -601,13 +615,24 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
       });
     }
 
+    // Show a general Members tab for non-governance, non-patron members
+    if (regularMembersCount > 0) {
+      tabs.push({
+        id: 'members',
+        label: getTrusteeTabLabel('members', regularMembersCount),
+        icon: Users,
+        icon_url: getSubFeatureIconUrl('members'),
+        enabled: isDirectoryEnabled && isMembersTabEnabled
+      });
+    }
+
     const filtered = tabs.filter((t) => t.enabled);
-    const orderMap = { trustees: 1, patrons: 2 };
+    const orderMap = { trustees: 1, patrons: 2, members: 3 };
     filtered.sort((a, b) => (orderMap[a.id] || 99) - (orderMap[b.id] || 99));
     return filtered;
-  }, [isDirectoryEnabled, isMembersTabEnabled, subFeatureMeta]);
+  }, [getTrusteesCount, getPatronsCount, getRegularMembersCount, isDirectoryEnabled, isMembersTabEnabled, getSubFeatureIconUrl]);
 
-  // Committee Directory Tabs — memoized
+  // Committee Directory Tabs Ã¢â‚¬â€ memoized
   const committeeTabs = useMemo(() => {
     const tabs = [
       {
@@ -631,7 +656,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [electedMembers, committeeMembers, isDirectoryEnabled, isElectedTabEnabled, isCommitteeTabEnabled, subFeatureMeta]);
 
-  // Get current tabs based on selected directory — memoized
+  // Get current tabs based on selected directory Ã¢â‚¬â€ memoized
   const currentTabs = useMemo(() =>
     selectedDirectory === 'healthcare' ? healthcareTabs :
       selectedDirectory === 'committee' ? committeeTabs : trusteeTabs,
@@ -641,7 +666,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
     const cards = [
       {
         id: 'trustee',
-        tabKey: trusteeTabs[0]?.id || 'trustees',
+        tabKey: trusteeTabs[0]?.id || 'members',
         title: getSubFeatureDisplayName('members', 'Members Directory'),
         tagline: getSubFeatureTagline('members', 'Find all trust members'),
         countText: dataLoaded ? `${allMembers.length} Members` : 'Loading...',
@@ -654,7 +679,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
         tabKey: healthcareTabs[0]?.id || 'doctors',
         title: getSubFeatureDisplayName('healthcare', 'Hospitals & Doctors'),
         tagline: getSubFeatureTagline('healthcare', 'Find doctors and hospitals'),
-        countText: dataLoaded ? `${getDoctorsCount() + getHospitalsCount()} Profiles` : 'Loading...',
+        countText: dataLoaded ? `${getDoctorsCount()} Profiles` : 'Loading...',
         enabled: canShowHealthcare,
         icon: DIRECTORY_ICON_MAP.healthcare,
         icon_url: getSubFeatureIconUrl('healthcare'),
@@ -725,7 +750,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
         setActiveTab(currentTabs[0].id);
       }
     }
-    // featureFlags intentionally omitted — currentTabs already reacts to it via useMemo
+    // featureFlags intentionally omitted Ã¢â‚¬â€ currentTabs already reacts to it via useMemo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDirectory, currentTabs]);
 
@@ -735,10 +760,10 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
 
     if (selectedDirectory && currentTabs.length > 0) {
       // Get members for the currently selected tab
-      const currentTabId = activeTab || currentTabs[0]?.id; // Use active tab if set, otherwise default to first tab
-      console.log('Filtering members for:', { selectedDirectory, currentTabId, opdDoctorsCount: opdDoctors.length, hospitalsCount: hospitals.length });
+      const currentTabId = currentTabs.some((tab) => tab.id === activeTab)
+        ? activeTab
+        : currentTabs[0]?.id;
       membersToFilter = getMembersByDirectoryAndTab(selectedDirectory, currentTabId);
-      console.log('Filtered members count:', membersToFilter.length, 'Data:', membersToFilter);
     } else {
       membersToFilter = [];
     }
@@ -780,7 +805,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
     previousFilteredRef.current = sortedMembers;
     // Reset to first page when search, tab, or directory changes
     setCurrentPage(1);
-    // currentTabs removed from deps — getMembersByDirectoryAndTab (useCallback) already
+    // currentTabs removed from deps Ã¢â‚¬â€ getMembersByDirectoryAndTab (useCallback) already
     // depends on the underlying data; adding currentTabs caused a new-array-reference loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDirectory, activeTab, searchQuery, allMembers, opdDoctors, opdDoctorsLoading, hospitals, electedMembers, committeeMembers]);
@@ -797,19 +822,6 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentPageMembers = filteredMembers.slice(startIndex, endIndex);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Pagination state:', {
-      selectedDirectory,
-      activeTab,
-      filteredMembersCount: filteredMembers.length,
-      currentPageMembersCount: currentPageMembers.length,
-      totalPages,
-      currentPage,
-      currentPageMembers
-    });
-  }, [selectedDirectory, activeTab, filteredMembers, currentPageMembers, totalPages, currentPage]);
 
   // Fetch profile photos for the current page members
   useEffect(() => {
@@ -863,7 +875,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
       {/* Navbar - Brand theme */}
       <div
         className="px-4 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md pointer-events-auto"
-        style={{ background: 'linear-gradient(135deg, var(--brand-navy-dark) 0%, var(--brand-navy) 60%, #3d4299 100%)', paddingTop: 'max(env(safe-area-inset-top, 0px), 22px)' }}
+        style={{ background: `linear-gradient(135deg, ${theme.secondary} 0%, ${theme.primary} 100%)`, paddingTop: "max(env(safe-area-inset-top, 0px), 22px)" }}
       >
         <button
           onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -915,7 +927,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
         currentPage="healthcare-directory"
       />
 
-      {/* ── Scrollable content area ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ Scrollable content area Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>
 
         {/* Directory Selection Screen */}
@@ -1260,7 +1272,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
                   >
                     {/* Avatar / Doctor Image */}
                     {selectedDirectory === 'healthcare' && activeTab === 'doctors' ? (
-                      // ── Doctor card: large image + rich details ──
+                      // Ã¢â€â‚¬Ã¢â€â‚¬ Doctor card: large image + rich details Ã¢â€â‚¬Ã¢â€â‚¬
                       <div className="flex gap-4 w-full">
                         {/* Doctor Photo */}
                         <div className="flex-shrink-0 h-20 w-20 rounded-2xl overflow-hidden bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center border border-indigo-200/50 shadow-sm">
@@ -1310,7 +1322,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
                             )}
                             {item.consultation_fee && (
                               <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-                                ₹{item.consultation_fee} fee
+                                Ã¢â€šÂ¹{item.consultation_fee} fee
                               </span>
                             )}
                           </div>
@@ -1319,7 +1331,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
                           {(item.general_opd_days || item.private_opd_days) && (
                             <p className="text-gray-500 text-[10px] mt-1.5 leading-relaxed">
                               {item.general_opd_days && <span><span className="font-semibold text-gray-600">OPD:</span> {item.general_opd_days}</span>}
-                              {item.general_opd_days && item.private_opd_days && ' · '}
+                              {item.general_opd_days && item.private_opd_days && ' Ã‚Â· '}
                               {item.private_opd_days && <span><span className="font-semibold text-gray-600">Pvt:</span> {item.private_opd_days}</span>}
                             </p>
                           )}
@@ -1338,7 +1350,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
                         </div>
                       </div>
                     ) : (
-                      // ── Generic card for hospitals, trustees, patrons, committee ──
+                      // Ã¢â€â‚¬Ã¢â€â‚¬ Generic card for hospitals, trustees, patrons, committee Ã¢â€â‚¬Ã¢â€â‚¬
                       <>
                         <div
                           className="h-14 w-14 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0"
@@ -1465,7 +1477,7 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
                       disabled={currentPage === 1}
                       className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all ${currentPage === 1 ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white text-[var(--brand-navy)] border border-[var(--brand-navy-light)] active:scale-95'}`}
                     >
-                      ← Prev
+                      Ã¢â€ Â Prev
                     </button>
                     <div className="flex items-center gap-1">
                       {(() => {
@@ -1490,14 +1502,14 @@ const HealthcareTrusteeDirectory = ({ onNavigate }) => {
                       })()}
                     </div>
                     <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--brand-navy)' }}>
-                      {startIndex + 1}–{Math.min(endIndex, filteredMembers.length)} / {filteredMembers.length}
+                      {startIndex + 1}Ã¢â‚¬â€œ{Math.min(endIndex, filteredMembers.length)} / {filteredMembers.length}
                     </span>
                     <button
                       onClick={() => { setCurrentPage(prev => Math.min(totalPages, prev + 1)); scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       disabled={currentPage === totalPages}
                       className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all ${currentPage === totalPages ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white text-[var(--brand-navy)] border border-[var(--brand-navy-light)] active:scale-95'}`}
                     >
-                      Next →
+                      Next Ã¢â€ â€™
                     </button>
                   </div>
                 </div>

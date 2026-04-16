@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { initPushNotifications } from './services/pushNotificationService';
+import { ThemeContext } from './context/ThemeContext';
 import Login from './Login';
 import VIPLogin from './VIPLogin';
 import Home from './Home';
@@ -200,32 +201,32 @@ const HospitalTrusteeApp = () => {
     const authed = isAuthenticated();
     if (!authed) {
       if (!PUBLIC_ROUTES.includes(location.pathname)) {
-        console.log('🔐 Not authenticated, redirecting to login');
+        console.log('ðŸ” Not authenticated, redirecting to login');
         navigate('/login', { replace: true });
       }
       return;
     }
 
     const savedRoute = localStorage.getItem(LAST_VISITED_ROUTE_KEY);
-    console.log('📍 App mounted - Current path:', location.pathname, 'Saved route:', savedRoute);
+    console.log('ðŸ“ App mounted - Current path:', location.pathname, 'Saved route:', savedRoute);
 
-    // Restore saved route when at root — skip if already on the right page
+    // Restore saved route when at root â€” skip if already on the right page
     const noRestoreRoutes = ['/login', '/otp-verification', '/special-otp-verification', '/terms-and-conditions', '/privacy-policy'];
     if (location.pathname === '/' && savedRoute && !noRestoreRoutes.includes(savedRoute) && savedRoute !== '/') {
-      console.log('⬅️ Restoring saved route:', savedRoute);
+      console.log('â¬…ï¸ Restoring saved route:', savedRoute);
       setTimeout(() => {
         navigate(savedRoute, { replace: true });
       }, 100);
     }
   }, []);
 
-  // ─── Notification Tap → Open Notifications Page ──────────────────────────────
+  // â”€â”€â”€ Notification Tap â†’ Open Notifications Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     // When user taps a phone notification, navigate to /notifications
     const subscription = LocalNotifications.addListener(
       'localNotificationActionPerformed',
       (action) => {
-        console.log('🔔 Notification tapped:', action);
+        console.log('ðŸ”” Notification tapped:', action);
         const notificationId =
           action?.notification?.extra?.notificationId ||
           action?.notification?.extra?.notification_id ||
@@ -248,7 +249,7 @@ const HospitalTrusteeApp = () => {
     };
   }, [navigate]);
 
-  // ─── FCM Push Registration (Android) ─────────────────────────────────────────
+  // â”€â”€â”€ FCM Push Registration (Android) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     let cleanup;
     const setupPush = async () => {
@@ -262,7 +263,7 @@ const HospitalTrusteeApp = () => {
     };
   }, []);
 
-  // ─── Push Tap Deep Link Fallback ──────────────────────────────────────────────
+  // â”€â”€â”€ Push Tap Deep Link Fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     const shouldOpen = localStorage.getItem('openNotificationsFromPush');
     const isLoggedIn = localStorage.getItem('isLoggedIn');
@@ -272,31 +273,30 @@ const HospitalTrusteeApp = () => {
     }
   }, [location.pathname, navigate]);
 
-  // ─── Birthday Notification Check (Direct Supabase) ───────────────────────────
+  // â”€â”€â”€ Birthday Notification Check (Direct Supabase) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (import.meta.env.VITE_DISABLE_NOTIFICATIONS === 'true') return;
     const checkBirthday = async () => {
       try {
         const userStr = localStorage.getItem('user');
         if (!userStr) {
-          console.log('🎂 [Birthday] No user in localStorage, skipping');
+          console.log('ðŸŽ‚ [Birthday] No user in localStorage, skipping');
           return;
         }
 
         const parsedUser = JSON.parse(userStr);
-        console.log('🎂 [Birthday] parsedUser keys:', Object.keys(parsedUser));
-        console.log('🎂 [Birthday] Mobile:', parsedUser.Mobile || parsedUser.mobile);
-        console.log('🎂 [Birthday] Membership number:', parsedUser['Membership number']);
+        console.log('ðŸŽ‚ [Birthday] parsedUser keys:', Object.keys(parsedUser));
+        console.log('ðŸŽ‚ [Birthday] Mobile:', parsedUser.Mobile || parsedUser.mobile);
+        console.log('ðŸŽ‚ [Birthday] Membership number:', parsedUser['Membership number']);
 
-        // Extract mobile number for user_profiles search
         const mobileForSearch = parsedUser.Mobile || parsedUser.mobile || parsedUser.phone || '';
-        // Extract membership/identifier for notification user_id storage
-        const membershipId = parsedUser['Membership number'] || parsedUser['membership_number'] || '';
-        // Primary userId = mobile (most reliable for notifications lookup)
-        const userId = mobileForSearch || membershipId || String(parsedUser.id || '');
+        const membershipId = parsedUser['Membership number'] || parsedUser.membershipNumber || parsedUser['membership_number'] || '';
+        const membersId = parsedUser.members_id || parsedUser.member_id || parsedUser.id || '';
+        // Primary userId for notifications table
+        const userId = mobileForSearch || membershipId || String(membersId || '');
 
         if (!userId) {
-          console.log('🎂 [Birthday] No userId found in user object, skipping');
+          console.log('ðŸŽ‚ [Birthday] No userId found in user object, skipping');
           return;
         }
 
@@ -305,52 +305,29 @@ const HospitalTrusteeApp = () => {
         const today = todayIST.toISOString().slice(0, 10); // YYYY-MM-DD
         const localKey = `birthdayNotif_${userId}_${today}`;
         if (localStorage.getItem(localKey)) {
-          console.log('🎂 [Birthday] Already shown today, skipping');
+          console.log('ðŸŽ‚ [Birthday] Already shown today, skipping');
           return;
         }
 
         // Import supabase dynamically to avoid circular deps
         const { supabase } = await import('./services/supabaseClient');
 
-        const orParts = [];
-        if (mobileForSearch) {
-          orParts.push(`mobile.eq.${mobileForSearch}`);
-          const last10 = mobileForSearch.replace(/\D/g, '').slice(-10);
-          if (last10 && last10 !== mobileForSearch) {
-            orParts.push(`mobile.ilike.%${last10}%`);
-          }
-        }
-        if (membershipId) {
-          orParts.push(`user_identifier.eq.${membershipId}`);
-        }
-        const orCondition = orParts.join(',');
-
-        const { data: profileRows, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('name, dob, mobile, user_identifier')
-          .or(orCondition)
-          .limit(5);
-
-        console.log('🎂 [Birthday] profileRows:', JSON.stringify(profileRows), 'error:', profileError?.message);
-
-        let profile = profileRows && profileRows.length > 0 ? profileRows[0] : null;
-
-        if (!profile) {
-          const { data: allProfiles } = await supabase
-            .from('user_profiles')
-            .select('name, dob, mobile, user_identifier')
-            .limit(50);
-          if (allProfiles) {
-            profile = allProfiles.find(p =>
-              String(p.mobile) === String(userId) ||
-              String(p.user_identifier) === String(userId)
-            ) || null;
-          }
+        if (!membersId) {
+          console.log('ðŸŽ‚ [Birthday] No members_id found, skipping');
+          return;
         }
 
-        if (!profile || !profile.dob) return;
+        const { data: profile, error: profileError } = await supabase
+          .from('member_profiles')
+          .select('date_of_birth')
+          .eq('members_id', membersId)
+          .maybeSingle();
 
-        const dobParts = profile.dob.split('-');
+        console.log('ðŸŽ‚ [Birthday] member_profiles row:', JSON.stringify(profile), 'error:', profileError?.message);
+
+        if (!profile || !profile.date_of_birth) return;
+
+        const dobParts = String(profile.date_of_birth).split('-');
         if (dobParts.length < 3) return;
         const dobMonth = dobParts[1];
         const dobDay = dobParts[2].substring(0, 2);
@@ -359,10 +336,15 @@ const HospitalTrusteeApp = () => {
 
         if (dobMonth !== todayMonth || dobDay !== todayDay) return;
 
-        const userName = profile.name || 'Member';
-        console.log(`🎉 [Birthday] BIRTHDAY DETECTED for: ${userName}`);
+        const userName = parsedUser.name || parsedUser.Name || 'Member';
+        console.log(`ðŸŽ‰ [Birthday] BIRTHDAY DETECTED for: ${userName}`);
 
-        const { data: existing } = await supabase
+        const isMissingUserIdColumnError = (error) =>
+          /column\s+notifications\.user_id\s+does not exist/i.test(String(error?.message || ''));
+
+        let existing = [];
+        let canUseUserIdColumn = true;
+        const { data: existingData, error: existingError } = await supabase
           .from('notifications')
           .select('id')
           .eq('user_id', String(userId))
@@ -370,21 +352,32 @@ const HospitalTrusteeApp = () => {
           .gte('created_at', `${today}T00:00:00.000Z`)
           .limit(1);
 
-        const birthdayMessage = `🎂 Maharaja Agrasen Samiti ki taraf se aapko janamdin ki hardik shubhkamnayein, ${userName} ji! Aapka yeh din bahut khaas ho! 🎉🎊`;
+        if (existingError) {
+          if (isMissingUserIdColumnError(existingError)) {
+            canUseUserIdColumn = false;
+            console.warn('[Birthday] notifications.user_id column missing; skipping birthday DB sync.');
+          } else {
+            throw existingError;
+          }
+        } else {
+          existing = existingData || [];
+        }
 
-        if (!existing || existing.length === 0) {
+        const birthdayMessage = `ðŸŽ‚ Maharaja Agrasen Samiti ki taraf se aapko janamdin ki hardik shubhkamnayein, ${userName} ji! Aapka yeh din bahut khaas ho! ðŸŽ‰ðŸŽŠ`;
+
+        if (canUseUserIdColumn && (!existing || existing.length === 0)) {
           const { error: insertErr } = await supabase.from('notifications').insert({
             user_id: String(userId),
-            title: '🎂 Happy Birthday!',
+            title: 'ðŸŽ‚ Happy Birthday!',
             message: birthdayMessage,
             type: 'birthday',
             is_read: false,
             created_at: new Date().toISOString(),
           });
           if (insertErr) {
-            console.error('🎂 [Birthday] DB insert error:', insertErr.message);
+            console.error('ðŸŽ‚ [Birthday] DB insert error:', insertErr.message);
           } else {
-            console.log('✅ [Birthday] Notification inserted in DB successfully');
+            console.log('âœ… [Birthday] Notification inserted in DB successfully');
           }
         }
 
@@ -411,8 +404,8 @@ const HospitalTrusteeApp = () => {
               notifications: [
                 {
                   id: notifId,
-                  title: '🎂 Happy Birthday!',
-                  body: `Mah-Setu ki taraf se ${userName} ji ko janamdin ki hardik shubhkamnayein! 🎉🎊`,
+                  title: 'ðŸŽ‚ Happy Birthday!',
+                  body: `Mah-Setu ki taraf se ${userName} ji ko janamdin ki hardik shubhkamnayein! ðŸŽ‰ðŸŽŠ`,
                   channelId: 'birthday_channel',
                   schedule: { at: new Date(Date.now() + 2000), allowWhileIdle: true },
                   sound: null,
@@ -470,6 +463,9 @@ const HospitalTrusteeApp = () => {
         const normalizeId = (value) => String(value || '').trim().toLowerCase();
         const fallbackUserIdSet = new Set();
         const fallbackUserIdRawSet = new Set();
+        let canQueryNotificationUserId = true;
+        const isMissingUserIdColumnError = (error) =>
+          /column\s+notifications\.user_id\s+does not exist/i.test(String(error?.message || ''));
 
         const refreshFallbackUserIds = async () => {
           try {
@@ -581,16 +577,26 @@ const HospitalTrusteeApp = () => {
               ]),
             ];
 
-            const { data: userNotifications, error: userNotifError } = await supabase
-              .from('notifications')
-              .select('*')
-              .in('user_id', notificationUserIds)
-              .gte('created_at', fiveSecondsAgo)
-              .order('created_at', { ascending: false });
+            let userNotifications = [];
+            if (canQueryNotificationUserId) {
+              const { data, error: userNotifError } = await supabase
+                .from('notifications')
+                .select('*')
+                .in('user_id', notificationUserIds)
+                .gte('created_at', fiveSecondsAgo)
+                .order('created_at', { ascending: false });
 
-            if (userNotifError) {
-              console.error('[NotifListener] User polling error:', userNotifError.message);
-              return;
+              if (userNotifError) {
+                if (isMissingUserIdColumnError(userNotifError)) {
+                  canQueryNotificationUserId = false;
+                  console.warn('[NotifListener] notifications.user_id column missing; skipping direct user polling.');
+                } else {
+                  console.error('[NotifListener] User polling error:', userNotifError.message);
+                  return;
+                }
+              } else {
+                userNotifications = data || [];
+              }
             }
 
             const { data: audienceNotifications, error: audienceError } = await supabase
@@ -767,6 +773,7 @@ const HospitalTrusteeApp = () => {
   }, [location.pathname]);
 
   return (
+    <ThemeContext.Provider value={appTheme}>
     <div className={`bg-white min-h-screen relative shadow-2xl overflow-x-hidden ${(location.pathname === '/login' || location.pathname === '/otp-verification' || location.pathname === '/profile' || location.pathname === '/vip-login') ? 'overflow-hidden' : 'overflow-y-auto'
       } max-w-full md:max-w-[430px] md:mx-auto`}>
       <Routes>
@@ -1029,6 +1036,7 @@ const HospitalTrusteeApp = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
+    </ThemeContext.Provider>
   );
 };
 

@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
 import { getProfile, getMemberTrustLinks } from '../services/api';
 import { fetchFeatureFlags, isFeatureEnabled } from '../services/featureFlags';
+import { useAppTheme } from '../context/ThemeContext';
 
 // Calculate profile completion % based on filled fields
 const calcCompletion = (profile, user) => {
@@ -22,6 +23,11 @@ const calcCompletion = (profile, user) => {
 };
 
 const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
+  const theme = useAppTheme();
+  const primary = theme.primary || '#C0241A';
+  const secondary = theme.secondary || '#2B2F7E';
+  const accent = theme.accent || '#FDECEA';
+  const accentBg = theme.accentBg || '#EAEBF8';
   const sidebarRef = useRef(null);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
@@ -241,14 +247,14 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
         ref={sidebarRef}
         className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-2xl z-50 flex flex-col"
         data-sidebar="true"
-        style={{ maxWidth: '85vw', touchAction: 'pan-y', borderRight: '1px solid rgba(192,36,26,0.08)', overflow: 'hidden', WebkitOverflowScrolling: 'touch', willChange: 'transform', display: 'flex', flexDirection: 'column' }}
+        style={{ maxWidth: '85vw', touchAction: 'pan-y', borderRight: `1px solid ${primary}14`, overflow: 'hidden', WebkitOverflowScrolling: 'touch', willChange: 'transform', display: 'flex', flexDirection: 'column' }}
       >
         {/* Brand accent at top */}
-        <div style={{ height: '4px', background: 'linear-gradient(90deg, #C0241A 0%, #2B2F7E 60%, #E8352A 100%)' }} />
+        <div style={{ height: '4px', background: `linear-gradient(90deg, ${primary} 0%, ${secondary} 60%, ${primary} 100%)` }} />
         {/* ── Profile Card Header ── */}
         <div
           className="px-5 pt-14 pb-5 flex-shrink-0 cursor-pointer"
-          style={{ borderBottom: '1px solid rgba(192,36,26,0.08)' }}
+          style={{ borderBottom: `1px solid ${primary}14` }}
           onClick={() => { onNavigate('profile'); onClose(); }}
         >
           {/* Avatar + name row */}
@@ -260,12 +266,12 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
                   src={profile.profilePhotoUrl}
                   alt={displayName}
                   className="h-14 w-14 rounded-2xl object-cover"
-                  style={{ border: '2px solid #FDECEA' }}
+                  style={{ border: `2px solid ${accent}` }}
                   onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
                 />
               ) : (
                 <div className="h-14 w-14 rounded-2xl flex items-center justify-center text-xl font-bold select-none"
-                  style={{ background: '#FDECEA', border: '2px solid #C0241A', color: '#C0241A' }}>
+                  style={{ background: accent, border: `2px solid ${primary}`, color: primary }}>
                   {initials}
                 </div>
               )}
@@ -276,7 +282,7 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
             {/* Name + subtitle */}
             <div className="flex-1 min-w-0">
               <p className="font-bold text-sm truncate" style={{ color: '#1e293b' }}>{displayName}</p>
-              <p className="text-xs font-semibold mt-0.5" style={{ color: '#C0241A' }}>View &amp; Edit Profile</p>
+              <p className="text-xs font-semibold mt-0.5" style={{ color: primary }}>View &amp; Edit Profile</p>
             </div>
 
             <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -292,8 +298,11 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
             </div>
             <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${completion >= 80 ? 'bg-green-500' : completion >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
-                style={{ width: `${completion}%` }}
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${completion}%`,
+                  background: completion >= 80 ? '#22c55e' : completion >= 50 ? '#f59e0b' : primary
+                }}
               />
             </div>
           </div>
@@ -339,15 +348,15 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
                     className="w-full flex items-center gap-3 px-4 rounded-xl transition-all text-left active:scale-95 select-none"
                     style={{
                       minHeight: '52px',
-                      WebkitTapHighlightColor: 'rgba(192,36,26,0.06)',
-                      background: isActive ? '#FDECEA' : 'transparent',
+                      WebkitTapHighlightColor: `${primary}10`,
+                      background: isActive ? accent : 'transparent',
                     }}
                   >
-                    <item.icon className="h-5 w-5 flex-shrink-0" style={{ color: isActive ? '#C0241A' : '#64748b' }} />
-                    <span className="font-semibold flex-1" style={{ color: isActive ? '#C0241A' : '#374151' }}>
+                    <item.icon className="h-5 w-5 flex-shrink-0" style={{ color: isActive ? primary : '#64748b' }} />
+                    <span className="font-semibold flex-1" style={{ color: isActive ? primary : '#374151' }}>
                       {item.label}
                     </span>
-                    {isActive && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#C0241A' }} />}
+                    {isActive && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: primary }} />}
                   </button>
                 );
               })}
@@ -397,13 +406,13 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
                 }
               }}
               className="w-full flex items-center gap-3 px-4 rounded-xl font-semibold active:opacity-80 transition-all active:scale-95 select-none relative"
-              style={{ minHeight: '48px', background: '#EAEBF8', color: '#2B2F7E', WebkitTapHighlightColor: 'rgba(43,47,126,0.08)' }}
+              style={{ minHeight: '48px', background: accentBg, color: secondary, WebkitTapHighlightColor: `${secondary}14` }}
             >
               <Share2 className="h-5 w-5 flex-shrink-0" />
               <span>Share App</span>
               {shareToast && (
                 <span className="absolute right-4 text-xs text-white px-2 py-0.5 rounded-full"
-                  style={{ background: '#2B2F7E' }}>
+                  style={{ background: secondary }}>
                   Copied!
                 </span>
               )}
@@ -415,17 +424,17 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
               className="w-full flex items-center gap-3 px-4 rounded-xl font-semibold transition-all active:scale-95 select-none relative"
               style={{
                 minHeight: '50px',
-                background: 'linear-gradient(135deg, #EEF1FF 0%, #F0F4FF 100%)',
-                color: '#2B2F7E',
-                border: '1.5px solid #DBEAFE',
-                WebkitTapHighlightColor: 'rgba(43,47,126,0.08)',
+                background: `linear-gradient(135deg, ${accentBg}99 0%, ${accentBg}cc 100%)`,
+                color: secondary,
+                border: `1.5px solid ${secondary}26`,
+                WebkitTapHighlightColor: `${secondary}14`,
               }}
             >
               <div
                 className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ background: 'rgba(43,47,126,0.12)' }}
+                style={{ background: `${secondary}1F` }}
               >
-                <Users className="h-4 w-4" style={{ color: '#2B2F7E' }} />
+                <Users className="h-4 w-4" style={{ color: secondary }} />
               </div>
               <div className="flex-1 text-left">
                 <span className="text-sm font-bold">Other Membership Details</span>
@@ -435,19 +444,19 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
                 {!loadingTrustLinks && memberTrustLinks.length > 0 && (
                   <span
                     className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: 'rgba(43,47,126,0.12)', color: '#2B2F7E' }}
+                    style={{ background: `${secondary}1F`, color: secondary }}
                   >
                     {memberTrustLinks.length}
                   </span>
                 )}
               </div>
-              <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: '#2B2F7E' }} />
+              <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: secondary }} />
             </button>
 
           </div>
 
           {/* ── Logout ── */}
-          <div className="px-3 pb-8" style={{ borderTop: '1px solid rgba(192,36,26,0.08)' }}>
+          <div className="px-3 pb-8" style={{ borderTop: `1px solid ${primary}14` }}>
             <button
               onClick={() => {
                 localStorage.removeItem('user');
@@ -464,7 +473,7 @@ const Sidebar = ({ isOpen, onClose, onNavigate, currentPage, onLogout }) => {
                 if (onClose) onClose();
               }}
               className="w-full flex items-center justify-between px-4 rounded-xl font-bold active:opacity-80 transition-all active:scale-95 select-none"
-              style={{ minHeight: '52px', background: '#FDECEA', color: '#C0241A', WebkitTapHighlightColor: 'rgba(192,36,26,0.08)' }}
+              style={{ minHeight: '52px', background: accent, color: primary, WebkitTapHighlightColor: `${primary}14` }}
             >
               <div className="flex items-center gap-3">
                 <LogOut className="h-5 w-5 flex-shrink-0" />
